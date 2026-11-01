@@ -1,6 +1,6 @@
 ---
 name: open-claude-session
-description: Opens a new, resumed, or forked Claude Code session from the /implement-ticket work log in a cmux workspace group; a fork for the next PR of a ticket opens as a tab beside its source. Use for "open claude in <group>", "resume or fork <session> in <group>", or "/open-claude-session".
+description: Opens a new, resumed, or forked Claude Code session from the /implement-ticket work log in a cmux workspace group; --go switches cmux to it, and opens it first if it is not open. Use for "open claude in <group>", "resume or fork <session>", "go to <session>", or "/open-claude-session".
 user-invocable: true
 allowed-tools: Read, Bash(cmux *)
 model: haiku
@@ -18,8 +18,8 @@ the group name is close to the name of a group that exists.
 ## Arguments
 
 ```
-/open-claude-session <group> [--resume [<session>] | --fork [<session>]] [--name <title>]
-                     [--agent <agent>] [--cwd <path>] [--prompt "<text>"]
+/open-claude-session [<group>] [--resume [<session>] | --fork [<session>]] [--name <title>]
+                     [--agent <agent>] [--cwd <path>] [--prompt "<text>"] [--go [<session>]]
 ```
 
 | Argument | Required | Applies to | Meaning |
@@ -31,13 +31,16 @@ the group name is close to the name of a group that exists.
 | `--agent <agent>` | no | new | Run the session as this agent: `claude --agent <agent>` |
 | `--cwd <path>` | no | all | The folder where the session starts |
 | `--prompt "<text>"` | no | new, fork | The first prompt of the new session |
+| `--go` | no | all | After the open, switch cmux to the new workspace or tab |
+| `--go <session>` | no | go | Switch cmux to this work-log session. If it is not open, resume it, then switch. See Step 0 |
 
 Parse in this order:
 1. The first word that does not start with `--` is `<group>`.
-2. Read each flag and its value. For `--resume` and `--fork`, the next word is its value only if it does not start with `--`.
-3. If `<group>` is missing, STOP and ask for it. Show the groups from `cmux workspace-group list`.
-4. If `--resume` is used together with `--fork`, `--name`, `--agent` or `--prompt`, STOP and say that resume takes only `--cwd`.
-5. If `--fork` is used together with `--agent`, STOP and say that a fork keeps the agent of its source.
+2. Read each flag and its value. For `--resume`, `--fork`, and `--go`, the next word is its value only if it does not start with `--`.
+3. If `<group>` is missing, STOP and ask for it. Show the groups from `cmux workspace-group list`. Exception: `--go <session>` needs a group only when Step 0 finds the session not open.
+4. If `--go <session>` is used together with `--resume`, `--fork`, `--name`, `--agent` or `--prompt`, STOP and say that `--go <session>` takes only `<group>` and `--cwd`.
+5. If `--resume` is used together with `--fork`, `--name`, `--agent` or `--prompt`, STOP and say that resume takes only `--cwd` and `--go`.
+6. If `--fork` is used together with `--agent`, STOP and say that a fork keeps the agent of its source.
 
 ## Defaults
 
@@ -72,6 +75,26 @@ If the file does not exist, or `active` is empty, STOP and say that there is no
 session to resume or fork.
 
 ## Workflow
+
+### Step 0 — Go to an open session (`--go <session>` only)
+
+1. Find the work-log entry of `<session>` with the matching rules of Step 2.
+2. If the entry has a `sessionId`, find its cmux tab:
+
+   ```bash
+   cmux sessions list --agent claude --session '<sessionId>' --json
+   ```
+
+3. If `sessions` has a record with a `workspace_id` and a `surface_id`, switch to it:
+
+   ```bash
+   cmux workspace select --workspace '<workspace_id>'
+   cmux focus-panel --panel '<surface_id>' --workspace '<workspace_id>'
+   ```
+
+   If both commands succeed, report `👉 Switched to <session>: <workspace ref> <surface ref>` and the `ticket` and `status` of the entry. Stop.
+4. If the entry has no `sessionId`, run `cmux workspace list --json`, and find the workspace whose `title` equals the `session` of the entry, without case. If one matches, run only `cmux workspace select` for its `ref`, and report as in item 3.
+5. If nothing matches, or a switch command fails, the session is not open. Continue at Step 1 as `--resume <session> --go`, because a cmux record can stay after its tab is closed.
 
 ### Step 1 — Find or create the group
 
@@ -196,6 +219,17 @@ Keep the `workspace:N` ref from the output.
 If Step 1 created the group, add `(new group)` after its name. For a resume or a fork, add the
 `ticket` and the `status` of the entry.
 
+### Step 6 — Switch (`--go` only)
+
+Switch cmux to what Step 4 opened. Use the refs from the output of Step 4:
+
+```bash
+cmux workspace select --workspace <workspace-ref>
+cmux focus-panel --panel <surface-ref> --workspace <workspace-ref>   # only for a new tab
+```
+
+Add `👉 Switched` to the report.
+
 ## Rules
 
 - ALWAYS open a new workspace, or a new tab when `rules.md` says so. NEVER type into a surface that exists, because a session may be running in it.
@@ -203,7 +237,9 @@ If Step 1 created the group, add `(new group)` after its name. For a resume or a
 - NEVER resume a running session to continue its work in a second tab. Fork it, because two processes on one session ID write to the same transcript.
 - NEVER create a second group with a name that already exists. Compare names without case.
 - NEVER create a group when a group with a similar name exists, unless the user confirms it.
-- If a `cmux` command fails, STOP and show its output. Do not try a different command.
+- If a `cmux` command fails, STOP and show its output. Do not try a different command. Exception: a failed switch in Step 0 means that the session is not open.
+- Switch cmux only with `--go`. Another session that calls this skill does not pass it, because a switch takes the screen from the user while they type.
+- With `--go <session>`, NEVER open a second tab for a session that is open. Switch to it, because two processes on one session ID write to the same transcript.
 
 ## Examples
 
@@ -212,6 +248,9 @@ If Step 1 created the group, add `(new group)` after its name. For a resume or a
 - `/open-claude-session ops --agent implement-ticket --prompt "PROJ-1234"` — runs an agent with a first prompt, and creates the group `ops` if it does not exist
 - `/open-claude-session work --resume PROJ-1234` — resumes the latest work-log session for that ticket
 - `/open-claude-session work --resume` — lists the work-log sessions and waits for a pick
+- `/open-claude-session --go PROJ-1234` — switches to the open session of the ticket
+- `/open-claude-session work --go PROJ-1234` — switches to it, or resumes it in `work` and switches if it is not open
+- `/open-claude-session work --name api-cleanup --go` — opens a new session and switches to it
 - `/open-claude-session work --fork PROJ-1234 --name PROJ-1234-pr2 --prompt "start the next PR in the stack"` — forks the session as a new tab in its workspace (rule 1)
 
 ## Retry
