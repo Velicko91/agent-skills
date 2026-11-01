@@ -1,0 +1,19 @@
+{
+  "_comment": "Copy to data.json (gitignored) and fill in. One entry for each service.",
+  "resolveCheckHours": 2,
+  "services": {
+    "acme-ledger": {
+      "aliases": ["ledger", "ledger-service", "ledger-worker"],
+      "repo": "~/code/acme-ledger",
+      "databases": ["acme-ledger-dev", "acme-ledger-prod"],
+      "logs": "acme-ledger",
+      "slackChannels": ["#ledger-alerts", "#team-ledger"],
+      "incidentIo": {
+        "services": ["Ledger"],
+        "teams": ["Payments"]
+      },
+      "dnoteBooks": ["Ledger-Firefighting"],
+      "exec": {"dev": "exec-acme-ledger-dev", "prod": "exec-acme-ledger-prod"}
+    }
+  }
+}

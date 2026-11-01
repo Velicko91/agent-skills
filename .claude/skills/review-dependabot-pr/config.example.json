@@ -1,0 +1,32 @@
+{
+  "_comment": "Copy to ~/.claude/config.local.json and fill in real values. Never commit real hosts here. The skill runs without this file, but it skips the sibling-repository check and falls back to the org managed policy for internal identifiers.",
+
+  "repos": {
+    "_comment_root": "Absolute path to the directory that holds your checkouts.",
+    "root": "~/work/<org>",
+
+    "_comment_services": "Deployable services. Used to widen a usage grep.",
+    "services": [
+      "example-api-service",
+      "example-billing-service"
+    ],
+
+    "_comment_shared": "Libraries other repos depend on. A bump here is checked against siblings.",
+    "sharedLibraries": [
+      "example-py-shared",
+      "example-go-shared"
+    ]
+  },
+
+  "internal": {
+    "_comment_orgs": "Git orgs that host first-party code. Exempt from cooldown and pinning. Matched by URL, never by package name.",
+    "gitOrgs": [
+      "github.com/<YourOrg>"
+    ],
+
+    "_comment_hosts": "Private package registries that serve first-party packages. Also matched by URL.",
+    "packageHosts": [
+      "<region>-python.pkg.dev/<project-id>"
+    ]
+  }
+}

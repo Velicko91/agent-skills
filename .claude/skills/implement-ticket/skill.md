@@ -1,0 +1,301 @@
+---
+name: implement-ticket
+description: Implements a ticket from the configured tracker (Linear today) or a free-text spec — explores the code, writes a plan with three self-review passes, waits for approval, implements and tests, then follows the ticket through merge, dev tests, and prod checks. Use for "/implement-ticket PROJ-1234", a ticket URL, or "implement this ticket".
+user-invocable: true
+allowed-tools: "*"
+---
+
+# Implement Ticket
+
+Build a reviewed plan from a ticket or a description. Get approval, then implement it. Follow the ticket until it is merged, tested on dev, and checked on prod.
+
+## Hard rules
+
+- NEVER write code before the user approves the plan.
+- Ask all questions in one message.
+- NEVER commit or stage the ticket document. It is working material, and a reviewer cannot tell a plan file in the diff from the product.
+- NEVER use `git add .` or `git add -A`. Stage files by name.
+- NEVER script a code change (`sed -i`, `awk`, `perl -pi`, `python`, heredocs). Use Edit and Write only, one clear change at a time, with no bulk find-and-replace. Scripts are fine for reading code.
+- NEVER delete a work-log entry unless the user asks in this conversation. Silence, or approval of something else, is not permission.
+- NEVER run `/create-pr` automatically. The user does that.
+- NEVER set `prod-tested` or move the ticket to done before the user confirms that each prod check passes. A merge or a dev test is not the end of the ticket.
+- NEVER send a call to prod. The user runs the prod checks, because a call on prod can change real customer data.
+- Use `date -u +%Y-%m-%d` for every date. NEVER guess today's date.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+
+## Arguments
+
+| Form | Example | Behaviour |
+|------|---------|-----------|
+| Ticket URL | `https://linear.app/<workspace>/issue/PROJ-1234/...` | Fetch the ticket |
+| Ticket ID | `PROJ-1234` | Fetch the ticket |
+| Free-text description | `"add rate limiting to the GQL API"` | Use it as the specification |
+| *(empty)* | — | Ask: "What should I implement? Give a ticket URL or ID, or a description." |
+
+Text after the ID is extra direction for the plan, for example "skip the gRPC layer".
+
+Add `--incremental` to build the change in steps: each step is implemented, tested, reviewed, and committed before the next one starts. See "Phases 6–7 with `--incremental`".
+
+## Tracker
+
+Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the adapter. Phase 1 uses its Identify and Tools sections, and every call follows its Rules.
+
+## Workflow
+
+### Phase 0 — Work log ⟨ph:00ad41f5⟩
+
+Run `/work-log status`. Show its output first. It lists the open work and any entries in `readyToDelete`.
+
+- If the ticket in `$ARGUMENTS` has an open entry, say so, and offer to resume it with its `claude --resume` command.
+- If the entry is `merged`, continue at Phase 9. If it is `dev-tested`, continue at Phase 10.
+- If this session is resumed and its PR is open, first catch up on what happened without it: read the new PR comments and replies (`gh pr view <pr> --comments`) and the commits since your last one (`git log --oneline <your last commit>..origin/<branch>`). Tier 1 of `/sweep-pr-comments` fixes simple review comments in a fresh session, so this session did not see those changes.
+- If the user says "clean the work log", run `/work-log clean --confirmed`, and tell it that the user asked.
+
+### Phase 1 — Load the issue ⟨ph:92c74439⟩
+
+If `$ARGUMENTS` matches the URL or ID pattern of the adapter (Identify):
+
+1. Take the ID, from the URL if necessary.
+2. Fetch the ticket with the Fetch tool of the adapter.
+3. Take the title, description, acceptance criteria, labels, parent, project, and state. Ignore a suggested branch name.
+4. Show: `🎫 PROJ-1234 — <title>`
+
+Name the session `<TICKET>-<short-description>`. The description is the title in lowercase, with hyphens for other characters, cut to about 4 words. Show the command:
+
+```
+📎 Name this session:  /rename PROJ-1234-add-pagination-positions
+```
+
+Use this one name for the session, the work-log `session` field, `claude --resume`, and the `-n` value of any later session.
+
+If `$ARGUMENTS` is a description, use it as the specification. Do not fetch anything.
+
+### Phase 2 — Find the existing ticket document ⟨ph:f3607943⟩
+
+`/plan`, `/drill-me`, or a tech spec can already hold a document for this ticket. Use that document. NEVER start a second one, because two plans drift apart.
+
+```bash
+git rev-parse --show-toplevel
+ls *.md docs/*.md notes/*.md 2>/dev/null
+```
+
+Match in this order. Stop at the first match:
+
+1. The identifier in the file name: `PROJ-1234-plan.md`, `plan-PROJ-1234.md`
+2. The identifier in the first 20 lines of the file
+3. The branch slug in the file name: `implementation-plan-add-pagination.md`
+
+If two documents match, list them and ask which one to use. Do not merge them.
+
+If a document matches:
+- Read all of it before Phase 3.
+- Show: `📄 Using existing document: plan-PROJ-1234.md`
+- Use it as the plan base, and write each plan update back to it.
+- If it disagrees with the issue, list the differences at the checkpoint and ask which one is current. Do not assume that the document is stale.
+
+If no document matches, keep the plan in the conversation until the user approves it. Then write the approved plan to `plan-<ID>.md` (or `plan-<slug>.md` with no ticket) at the root of the repo or the worktree, so a later `/fix-pr-comments` in a fresh session can read the design and the reasons. It is working material: never stage or commit it.
+
+### Phase 3 — Explore ⟨ph:0103e371⟩
+
+Find the affected entry points, the models and schemas to change, the existing tests, and the patterns to follow.
+
+### Phase 4 — Draft the plan ⟨ph:48471001⟩
+
+If Phase 2 found a document, start from it. Keep its headings and wording where they still hold, because the user wrote or approved them. Use this template:
+
+```
+## Implementation Plan
+
+**Issue:** PROJ-1234 — <title>        (or "Spec: <description>")
+
+### What I'll implement
+<one-paragraph summary>
+
+### Files I'll change
+- `path/to/file.py` — what changes and why
+- `path/to/test_file.py` — which tests to add or update
+
+### Approach
+<functions, patterns, data structures>
+
+### Edge cases and risks
+- <item>
+
+### Steps                              (only with --incremental)
+1. <type>: <what the step does> — `file_a.py`, `test_file_a.py`
+2. <type>: <what the step does> — `file_b.py`, `test_file_b.py`
+
+### Plan review notes
+- Pass 1: <what was found and fixed>
+- Pass 2: <what was found and fixed>
+- Pass 3: <what was found and fixed>
+```
+
+### Phase 5 — Self-review (3 passes) ⟨ph:67679054⟩
+
+Review the plan as `/review-code` reviews code. Run exactly 3 passes, and update the plan after each one. Do not show the passes. Show only the review notes.
+
+Each pass checks:
+1. **Design** — Is there a simpler approach, or one that matches the code base better?
+2. **Architecture** — Is the separation of concerns correct? Does the plan add coupling or break a convention?
+3. **Completeness** — Are files, tests, error handling, or acceptance criteria missing?
+4. **Correctness** — Are there logic errors, performance traps, or other risks?
+
+### CHECKPOINT — Present the plan ⟨ph:8988d3c9⟩
+
+Show the plan. Put all open questions in the same message. Ask: "Shall I proceed, or do you want to adjust anything?"
+
+STOP and WAIT. If the user asks for changes, update the plan, show it again, and wait again. After the approval, save the plan to the ticket document (Phase 2): the existing document, or `plan-<ID>.md`.
+
+### Phase 6 — Implement ⟨ph:77c3efeb⟩
+
+**Create the branch before the first edit.** `/create-pr` and the PR title check expect this format:
+
+```
+<type>/<TICKET>-<short-description>      e.g. feat/PROJ-1234-add-pagination-positions
+```
+
+- `type` is one of `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `style`, `perf`, `ci`, `build`, `revert`. A defect is `fix`, a new capability is `feat`, and a change of structure with no change of behaviour is `refactor`.
+- `short-description` is the same as in the session name.
+- Do not use the branch name that the tracker suggests (for example the Linear `gitBranchName`), because it starts with a username.
+- For a worktree, create it with the full branch name: `git worktree add -b <branch> <path> <base>`. The folder name can be anything.
+- Each stacked PR branch also starts with its own type.
+- If the work is on a branch with a different name and nothing is pushed, run `git branch -m <new-name>`. If the branch is pushed or has a PR, ask the user, because a rename needs a new PR.
+- Check with `git branch --show-current` before the first commit.
+
+When the branch exists, record it at once, because an entry written later is lost if the session stops:
+
+```
+/work-log add --ticket PROJ-1234 --title "<title>" --branch <branch> --session <session> --session-id <id> [--worktree <path>]
+```
+
+Get `<id>` with `echo $CLAUDE_CODE_SESSION_ID`. A resume by ID works also after a `/rename`.
+
+Implement the plan:
+- Change one file at a time. Follow the conventions of the code: naming, imports, docstrings, error handling.
+- Do not change test files in this phase.
+- Add a code comment only when the code cannot explain itself. Keep a comment to 5 lines or fewer. Docstrings have no limit.
+- Stage each logical group with `git add <files>`.
+
+Report:
+
+```
+✅ Implementation complete — <N> files changed
+Staged: <files>
+```
+
+### Phase 7 — Tests ⟨ph:17aabef4⟩
+
+Add or update tests. Follow the patterns of the existing tests for that domain. Stage the tests after the source changes, so the diff is easy to review.
+
+Then run the full test suite, with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md`: `check tests` before the run, and `record tests passed|failed` after it. If a test fails, fix it and run the suite again.
+
+### Phases 6–7 with `--incremental` ⟨ph:d94ee4b6⟩
+
+Create the branch and the work-log entry as in Phase 6. Then run this loop once for each step of the plan, in order:
+
+1. Implement the source changes of the step, one file at a time, with the rules of Phase 6.
+2. Add or update the tests of the step. This replaces the Phase 6 rule "Do not change test files".
+3. Run the tests of the modules that the step changes. Record no stamp, because this is not the full suite. If a test fails, fix it before you continue.
+4. Stage the files of the step by name. Run `/review-code`: its default scope is the staged changes, so it reviews only this step. Fix each real problem, stage it again, and run it again until it finds no Critical or Major issue.
+5. Commit the step:
+   ```bash
+   git commit -m "<type>: <what the step does>" -m "Refs: <TICKET>" -m "<attribution line>"
+   ```
+   The subject is a Conventional Commit: no ticket between the type and the colon. NEVER push, because `/create-pr` pushes the branch.
+6. Report one line: `✅ Step 2/4 — <short sha> <subject> — tests: <N> passed — review: clean`
+
+A step is one logical change that builds and passes its own tests, usually 1–4 files, for example "add the model and the migration" or "add the resolver". Plan approval at the checkpoint is the permission to commit each step.
+
+If a step review finds a design problem, or a step needs a change that the plan does not have, STOP. Show the problem and ask how to continue, because the later steps build on this one.
+
+After the last step, run Phase 7's full test suite with the stamp rules once, then Phase 8. The final `/review-code --branch` reads the whole branch again, but each step is already reviewed, so it looks mainly at how the steps fit together.
+
+### Phase 8 — Review and finish ⟨ph:2976f0d6⟩
+
+1. Run `/review-code --branch`: it reviews the whole change compared with the default branch (usually `main`), committed or not. Fix each real problem, stage it again, and run `/review-code --branch` again. Write down each false positive or intentional trade-off. When it finds no Critical or Major issue, run `~/.claude/skills/verify-stamp/stamp.sh record review clean`.
+   - If the review changed files, run the full suite again with the test stamp rules. Then `/create-pr` can reuse both stamps.
+2. Run the built-in Claude Code review at the high level: `/code-review high <branch>`. This is `code-review`, not the `/review-code` skill of step 1. It is a second review that is not anchored on step 1, so it finds other bugs.
+   - Check each finding against the code. Fix each real one by hand with Edit, and write down each false positive.
+   - Do not pass `--fix` or `--comment`, because each fix needs a check, and the PR does not exist yet.
+   - If you changed files, run the full suite again with the test stamp rules, and run `stamp.sh record review clean` again.
+3. Check that the ticket document is not staged:
+   ```bash
+   git diff --cached --name-only
+   ```
+   If it is staged, run `git restore --staged <document>` and tell the user.
+4. If `git ls-files <document>` shows that an earlier commit tracks the document, tell the user. Offer to add it to `.gitignore` and run `git rm --cached <document>`. Do not remove a tracked file without permission.
+5. When both reviews find no blocking issue, report:
+   ```
+   ✅ Ready for review
+
+   Files changed:
+   - <file>: <what changed>
+
+   Run /create-pr when ready to open a pull request.
+   ```
+6. When the PR is open, run `/work-log update --branch <branch> --pr <url> --status in-review`.
+7. Start the merge check at once, with no question. Run this with Bash `run_in_background`:
+
+   ```bash
+   while s=$(~/.claude/skills/work-log/worklog.py merged --branch <branch>) && [ "$s" = no ]; do sleep 3600; done; echo "${s:-error}"
+   ```
+
+   The loop uses no model tokens until it exits, and it stops when the session closes. When it exits:
+   - `yes`: send a PushNotification `<TICKET> merged`, and start Phase 9.
+   - `closed`: tell the user that the PR is closed without a merge. The entry is now `abandoned`.
+   - `error`: show the error of the script. Do not start the loop again.
+
+### Phase 9 — After the merge ⟨ph:8c9baf91⟩
+
+Start this phase when the merge check prints `yes`, or when the user says that the PR is merged or asks to run the dev tests. If the merge check still runs, stop it with TaskStop.
+
+1. Run `/work-log status`. It reads the PR state from GitHub and sets `status: merged` and `mergedAt`.
+2. If the entry is still not `merged`, tell the user that GitHub does not show the PR as merged. If the user confirms the merge, run `/work-log update --branch <branch> --status merged`.
+3. If the user already asked for the dev tests, go to step 4. Otherwise ask:
+
+   > Run the full tests on dev? `/test-on-dev <service> <ticket>` tests the acceptance criteria, then `--random` tests the change. (yes / no)
+
+   `<service>` is the name of a file in `~/.claude/skills/test-on-dev/services/`, from the repo name. If no file matches, ask for the service.
+4. Run `/test-on-dev <service> <ticket>`, then `/test-on-dev <service> --random` from the ticket's branch, so the exploratory tests read the merged diff. Report both results.
+5. If no test fails, run `/work-log update --branch <branch> --status dev-tested`, and go to Phase 10. A `blocked` test does not stop this, but name it in Phase 10. If a test fails, keep the status `merged`, show the failure, and ask how to continue.
+
+### Phase 10 — Prod checks ⟨ph:ba1a965d⟩
+
+Start this phase after Phase 9, or when the user resumes an entry that is `dev-tested`.
+
+1. Read `prod-checks.md` in this skill directory, and write the prod checklist from it.
+2. Show the checklist, and ask:
+
+   > Run these checks when the change is on prod, then tell me the result of each one.
+
+   STOP and WAIT.
+3. If the user reports that each check passes:
+   1. Run `/work-log update --branch <branch> --status prod-tested`.
+   2. Ask: "Move <TICKET> to done?" After a yes, use the Done row in "States" of the tracker adapter.
+4. If a check fails, keep the status `dev-tested`. Help find the cause with `/get-gcloud-logs`, or `/investigate-incident` for an incident. Give the rollback step of the checklist.
+
+## Automated runs — scope guard
+
+A run is automated when no user is present: headless (`claude -p`), background (`--bg`), cron, or a call from another skill or agent. An automated run changes only the worktree of this ticket, because no reviewer sees a wrong write outside it.
+
+- Get the worktree path with `git rev-parse --show-toplevel`. Before each write, check that the full file path starts with it.
+- Run `git` only in that worktree. Push only the branch of this ticket. NEVER force-push.
+- Do not touch `~/.claude`, settings, skills, other repositories, other worktrees, or the main checkout. The only exception is the work log, through `/work-log`.
+- If a step needs a path outside the worktree, skip the step, report it, and stop. Ask no question.
+
+## Other rules
+
+- Follow the Rules of the tracker adapter on every tracker call.
+
+## Examples
+
+- `/implement-ticket PROJ-1234`
+- `/implement-ticket https://linear.app/<workspace>/issue/PROJ-1234/some-slug`
+- `/implement-ticket add page_number pagination to the positions resolver`
+- `/implement-ticket PROJ-1234 focus only on the Kafka handler, skip the gRPC layer`
+- `/implement-ticket` ← asks for an issue or a description
+
+## Retry
+
+Say **"retry"** to start again. Fetch the issue again, explore the code again, and use no earlier plan or notes.

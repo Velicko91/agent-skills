@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "_comment": "TEMPLATE. Copy to config.local.json and fill in. config.local.json is gitignored and never committed. Skills read it instead of hardcoding organization names.",
+  "_setup": "cp .claude/config.example.json .claude/config.local.json",
+  "_comment_tracker": "Issue tracker for create-ticket, implement-ticket, solve-ticket: linear or jira. An adapter must exist in skills/tracker/.",
+  "tracker": "",
+  "jira": {
+    "_comment": "Leave host empty if you do not use Jira. board and defaultTeam are optional; some projects require a team custom field on create.",
+    "host": "",
+    "project": "",
+    "board": "",
+    "teamField": "",
+    "sprintField": "",
+    "defaultTeam": "",
+    "teams": {}
+  },
+  "linear": {
+    "_comment": "workspace is the slug in https://linear.app/<workspace>. team is the issue key prefix.",
+    "workspace": "",
+    "team": "",
+    "teams": [
+      {
+        "key": "",
+        "repos": [],
+        "topics": []
+      }
+    ]
+  },
+  "repos": {
+    "_comment": "root is the parent directory holding your service checkouts. Skills grep these read-only for prior art.",
+    "root": "",
+    "services": [],
+    "sharedLibraries": []
+  },
+  "internal": {
+    "_comment": "Used to identify first-party dependencies, which are exempt from cooldown and pinning rules. Match by URL, never by package name.",
+    "gitOrgs": [],
+    "packageHosts": []
+  },
+  "gcp": {
+    "_comment": "Maps a service alias to its Kubernetes namespace and containers, and each environment to its GCP project. get-gcloud-logs reads this.",
+    "environments": {
+      "dev": {
+        "project": "",
+        "cluster": ""
+      },
+      "staging": {
+        "project": "",
+        "cluster": ""
+      },
+      "prod": {
+        "project": "",
+        "cluster": ""
+      }
+    },
+    "services": [
+      {
+        "aliases": [
+          "example",
+          "example-api"
+        ],
+        "namespace": "example",
+        "containers": [
+          "api"
+        ],
+        "_comment": "Optional: environments, with the same shape as gcp.environments, for a service that runs in other projects.",
+        "jobContainers": [],
+        "helperContainers": [],
+        "envOnly": {}
+      }
+    ],
+    "defaultService": "",
+    "defaultEnv": "dev",
+    "_comment_containers": "containers = application deployments; jobContainers = scheduled or batch work: CronJobs, or a worker that runs scheduled tasks (also application logs); both go in the log filter. helperContainers never go in the filter. envOnly lists containers that exist only in some envs."
+  },
+  "snowflake": {
+    "_comment": "Maps each database to the topical keywords that route a question to it. query-snowflake reads this.",
+    "databases": {
+      "example_db": [
+        "keyword",
+        "another-keyword"
+      ]
+    }
+  },
+  "obsidian": {
+    "_comment": "flowsDir is the vault folder where /document-flow writes pages.",
+    "flowsDir": ""
+  },
+  "diagrams": {
+    "_comment": "Folder where /diagram saves its files.",
+    "dir": ""
+  }
+}

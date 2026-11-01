@@ -1,0 +1,55 @@
+{
+  "_comment": "Copy to data.json (gitignored) and fill in. Passwords go in the macOS Keychain, never here: security add-generic-password -U -s query-db -a <alias> -w",
+  "defaults": {
+    "limit": 100,
+    "statementTimeout": "30s",
+    "keychainService": "query-db"
+  },
+  "databases": {
+    "acme-ledger-dev": {
+      "engine": "postgres",
+      "host": "127.0.0.1",
+      "port": 15432,
+      "database": "ledger",
+      "user": "ledger_readonly",
+      "sslmode": "disable",
+      "keywords": ["ledger", "transactions", "balances"],
+      "tables": {
+        "public.transactions": "One row per ledger transaction. Join to accounts on account_id.",
+        "public.accounts": "One row per account. status is active, frozen or closed."
+      },
+      "notes": "Amounts are in cents.",
+      "portForward": {
+        "context": "acme-dev",
+        "namespace": "ledger",
+        "target": "svc/ledger-postgres",
+        "remotePort": 5432
+      }
+    },
+    "acme-billing-prod": {
+      "engine": "postgres",
+      "host": "127.0.0.1",
+      "port": 15433,
+      "database": "billing",
+      "user": "alice@acme.example",
+      "passwordless": true,
+      "keywords": ["billing", "invoices"],
+      "notes": "IAM auth through cloud-sql-proxy, so no Keychain password.",
+      "portForward": {
+        "command": ["cloud-sql-proxy", "--auto-iam-authn", "acme-prod:us-west1:billing", "--port", "15433"]
+      }
+    },
+    "acme-cards-local": {
+      "engine": "postgres",
+      "host": "127.0.0.1",
+      "port": 5432,
+      "database": "cards",
+      "user": "postgres",
+      "keychainAccount": "acme-cards-local",
+      "keywords": ["cards", "card limits"],
+      "tables": {
+        "public.cards": "One row per card. Soft-deleted rows have deleted_at set."
+      }
+    }
+  }
+}

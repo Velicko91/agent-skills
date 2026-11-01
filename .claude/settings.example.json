@@ -1,0 +1,36 @@
+{
+  "_comment": "TEMPLATE. Copy to settings.json and adjust. settings.json is gitignored because it holds machine-local hook paths and private marketplaces.",
+  "_setup": "cp .claude/settings.example.json .claude/settings.json",
+
+  "permissions": {
+    "_comment": "Read-only and build tooling. Add write commands deliberately — every rule here runs without a prompt.",
+    "allow": [
+      "Bash(ls *)",
+      "Bash(cd *)",
+      "Bash(find *)",
+      "Bash(grep *)",
+      "Bash(cat *)",
+      "Bash(awk *)",
+      "Bash(sed *)",
+      "Bash(sort *)",
+      "Bash(echo *)",
+      "Bash(tee *)",
+      "Bash(xargs *)",
+      "Bash(git *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr status *)",
+      "Bash(gh pr checks *)"
+    ],
+    "_ask_comment": "Commands that need confirmation. An empty list means nothing is confirmed.",
+    "ask": [
+      "Bash(git commit)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr comment *)"
+    ],
+    "deny": []
+  }
+}

@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------
+# Never commit. These files hold organization data, or they grow to
+# hold it. Copy the matching .example.json to recreate them.
+# ---------------------------------------------------------------
+
+# Local organization context (hosts, project ids, team ids, service map)
+.claude/config.local.json
+
+# Personal Claude settings: hook paths, private marketplaces, permissions
+.claude/settings.json
+.claude/settings.local.json
+
+# Local, machine-specific agent config
+.claude/agents/*.config.json
+
+# Per-skill local state: work logs, run history. Not configuration.
+# The matching *.example.json files stay committed.
+.claude/skills/**/data.json
+.claude/agents/**/data.json
+
+# Per-skill private notes, such as per-service testing rules. The matching *.example.md files stay committed.
+.claude/skills/**/*.local.md
+
+# Skill learning logs. These APPEND real PR numbers, repo names, and
+# commit SHAs on every run. They can never be safely committed.
+.claude/skills/**/learn.md
+.claude/agents/**/learn.md
+learn.md
+.claude/skills/**/lessons.md
+.claude/skills/**/learn-archive.md
+
+# Worktrees created by skills
+.claude/worktrees/
+
+# OS and editor noise
+.DS_Store
+.obsidian/
+
+# Private investigation notes and backups of local state
+.claude/skills/investigation/
+*.bak.*
+
+# Company-specific skill. Kept local only.
+.claude/skills/get-apex-balance/
+
+# Design and planning notes. They name company repos, services, and rules.
+design-files/
