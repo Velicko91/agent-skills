@@ -1,0 +1,28 @@
+{
+  "_comment": "Copy to data.json. boards are tracker team keys, in priority order. tiers is the full rank order: incident, prod-test, each board key, other.",
+  "config": {
+    "boards": [
+      "PROJ",
+      "ARCH"
+    ],
+    "tiers": [
+      "incident",
+      "prod-test",
+      "PROJ",
+      "ARCH",
+      "other"
+    ],
+    "idle": {
+      "incidentHours": 4,
+      "sessionDays": 2,
+      "testWaitDays": 1,
+      "waitingMinutes": 15
+    },
+    "repingHours": 2,
+    "pingMax": 3
+  },
+  "state": {
+    "pauses": {},
+    "pinged": {}
+  }
+}
