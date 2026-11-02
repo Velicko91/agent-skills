@@ -2,7 +2,7 @@
 name: open-claude-session
 description: Opens a new, resumed, or forked Claude Code session from the /implement-ticket work log in a cmux workspace group; --go switches cmux to it, and opens it first if it is not open. Use for "open claude in <group>", "resume or fork <session>", "go to <session>", or "/open-claude-session".
 user-invocable: true
-allowed-tools: Read, Bash(cmux *)
+allowed-tools: Read, Bash(cmux *), Bash(~/.claude/skills/work-log/worklog.py list *)
 model: haiku
 ---
 
@@ -58,20 +58,22 @@ Use the defaults without asking.
 
 ## Work log
 
-Resume and fork read only the work log of `/work-log`:
+Resume and fork read the work log only through `/work-log`:
 
-```
-~/.claude/skills/work-log/data.json
+```bash
+~/.claude/skills/work-log/worklog.py list --open
 ```
 
-Read the entries in `active`. Each entry holds `ticket`, `title`, `session`,
-`worktree`, `status`, `createdAt`, and, in newer entries, `sessionId` and `sessionCwd`.
+It prints a JSON array of the open items. In this skill, an entry is one branch in the
+`branches` of an item, and its `ticket` is the `key` of the branch. The `title` of an
+entry is the `title` of its item. Each branch holds `key`, `session`, `worktree`,
+`status`, `createdAt`, and, in newer entries, `sessionId` and `sessionCwd`.
 `sessionId` is the ID that `claude --resume` takes. `sessionCwd` is the folder that owns
 the session. Older entries have only `session`, the name of the session.
 
 NEVER write to the work log. Only `/work-log` writes it.
 
-If the file does not exist, or `active` is empty, STOP and say that there is no
+If the command fails, or it prints no branch, STOP and say that there is no
 session to resume or fork.
 
 ## Workflow
@@ -131,9 +133,10 @@ Do this step only with `--resume` or `--fork`. The steps are the same for both f
 1. Use the exact matches. If there are none, use the entries that contain the value.
 2. If one entry matches, use it. Do not ask.
 3. If more than one entry matches, use the one with the latest `createdAt`. Say which one you used, and name the others.
-4. If no entry matches, STOP. List the entries in `active`, and ask which one to use.
+4. If no entry matches, run `~/.claude/skills/work-log/worklog.py list --key <value>`, because the session can belong to a finished item. Use its branches with rules 1–3.
+5. If still no entry matches, STOP. List the entries, and ask which one to use.
 
-**If the flag has no value**, list the entries in `active` with the latest first:
+**If the flag has no value**, list the entries with the latest first:
 
 ```
 📋 Sessions in the work log

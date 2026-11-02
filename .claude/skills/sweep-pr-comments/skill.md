@@ -2,7 +2,7 @@
 name: sweep-pr-comments
 description: Sweeps the open PRs in the /implement-ticket work log for new unanswered review comments, fixes the simple ones in a cheap fresh session, and sends only the hard ones to the PR's own session. Built for cron. Use for "sweep PR comments".
 user-invocable: true
-allowed-tools: Bash(gh *), Bash(jq *), Bash(mv *), Bash(date *), Bash(claude *), Bash(git -C *), Read, Glob
+allowed-tools: Bash(gh *), Bash(jq *), Bash(~/.claude/skills/work-log/worklog.py *), Bash(date *), Bash(claude *), Bash(git -C *), Read, Glob
 model: haiku
 ---
 
@@ -18,13 +18,18 @@ None.
 
 ## Local configuration
 
-The work log is `~/.claude/skills/work-log/data.json`. It is local state and is never committed.
+Read and write the work log only with `worklog.py`. Use the full path, because a cron run starts in another folder:
 
-- If the file is missing, print `No work log found` and stop.
-- Read the entries in `active`. Use the fields `ticket`, `branch`, `session`, `sessionId`, `sessionCwd`, `pr`, `status`, `worktree`.
+```bash
+W=~/.claude/skills/work-log/worklog.py
+```
+
+- Read the open items with `$W list --open`. It prints a JSON array of items. Each item has `branches`.
+- Use these fields of each branch: `key` (the ticket), `branch`, `session`, `sessionId`, `sessionCwd`, `pr`, `status`, `worktree`.
+- If the command fails, print its error and stop.
 - NEVER guess a PR URL, a session name, or a path.
 
-This skill adds two fields to an entry. Create them when they are absent:
+This skill keeps two fields on a branch:
 
 | Field | Meaning |
 |-------|---------|
@@ -44,10 +49,10 @@ This skill adds two fields to an entry. Create them when they are absent:
 
 ### Step 1 — Select the PRs
 
-1. Read `data.json`.
-2. Keep the entries where `status` is `in-progress` or `in-review` and `pr` is not empty.
-3. Skip an entry when `sweepLockedAt` is less than 2 hours old. Another run owns it.
-4. Treat a lock that is 2 hours old or older as stale. Ignore it.
+1. Run `$W list --open`.
+2. Keep the branches where `status` is `in-progress` or `in-review` and `pr` is not empty.
+3. Skip a branch when `sweepLockedAt` is less than 2 hours old. Another run owns it.
+4. Treat a lock that is 2 hours old or older as stale. `lock` takes it over.
 
 Parse each `pr` URL: `https://github.com/<owner>/<repo>/pull/<number>`. If the URL does not match, report the entry as `skipped: bad URL`.
 
@@ -102,10 +107,10 @@ The expensive PR session handles only the comments that need its history. Tier 1
 
 If a list has ids:
 
-1. Set `sweepLockedAt` to now in `data.json`.
+1. Run `$W lock --branch <branch>`. If it exits 1, another run took the PR after Step 1. Record `skipped: locked`, and go to the next PR.
 2. Choose the folder: the `worktree` of the entry, else its `sessionCwd`. If both are `null`, record `failed: no folder`.
 3. Check that the PR branch is checked out there: `git -C "<folder>" branch --show-current` must print the `branch` of the entry. If it does not, record `failed: <branch> not checked out in <folder>`, because the fixes would go to the wrong branch.
-4. Find the design document. Search the root, `docs/`, and `notes/` of the folder and of the main checkout (the first entry of `git -C "<folder>" worktree list`), because untracked documents stay in the checkout where they were written. Take the first `.md` file whose name holds the `ticket` ID (for example `plan-<ticket>.md`), else the slug of the branch (the part after `<ticket>-`, for example `design-alignment-add-pagination.md`). Compare without case, because branch names can hold the ID in lowercase (`arc-490`).
+4. Find the design document. Search the root, `docs/`, and `notes/` of the folder and of the main checkout (the first entry of `git -C "<folder>" worktree list`), because untracked documents stay in the checkout where they were written. Take the first `.md` file whose name holds the `key` of the branch (for example `plan-<key>.md`), else the slug of the branch (the part after `<key>-`, for example `design-alignment-add-pagination.md`). Compare without case, because branch names can hold the ID in lowercase (`proj-490`).
 5. **Tier 1 — a fresh session.** Do not resume the PR session here:
 
    ```bash
@@ -121,17 +126,10 @@ If a list has ids:
 
    If the entry has no `sessionId`, use `session`. If the session is not found, record `escalated: <ids> — PR session not found`; do not start a new session for tier 2, because a new session has no history.
 7. If a command fails, or the `ESCALATE:` line is missing, record `failed: <short reason>`.
-8. If tier 1 (and tier 2, if it ran) succeeded, set `sweepCheckedAt` to the time at the start of Step 2 for this PR.
-9. Always clear `sweepLockedAt` after the commands end, also after a failure.
+8. If tier 1 (and tier 2, if it ran) succeeded, set `sweepCheckedAt` to the time at the start of Step 2 for this PR: `$W update --branch <branch> --set sweepCheckedAt=<ISO time>`.
+9. Always run `$W unlock --branch <branch>` after the commands end, also after a failure.
 
-Write `data.json` with a temporary file, then move it over the original. Use the full path, because a cron run starts in another folder:
-
-```bash
-L=~/.claude/skills/work-log/data.json
-jq '<update>' "$L" > "$L.tmp" && mv "$L.tmp" "$L"
-```
-
-Update only the fields of the entries you changed. Read the file again just before each write, because another skill can change it.
+The "no new comments" case of Step 2 also sets `sweepCheckedAt` with `$W update --branch <branch> --set sweepCheckedAt=<ISO time>`.
 
 Process the PRs one after the other.
 

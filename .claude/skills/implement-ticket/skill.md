@@ -44,13 +44,11 @@ Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the
 
 ### Phase 0 — Work log ⟨ph:00ad41f5⟩
 
-Run `/work-log status`. Show its output first. It lists the open work and any entries in `readyToDelete`.
+Run `/work-log status`. Show its output first. It lists the open work, the work that waits for a test, and the open incidents.
 
 - If the ticket in `$ARGUMENTS` has an open entry, say so, and offer to resume it with its `claude --resume` command.
 - If the entry is `merged`, continue at Phase 9. If it is `dev-tested`, continue at Phase 10.
 - If this session is resumed and its PR is open, first catch up on what happened without it: read the new PR comments and replies (`gh pr view <pr> --comments`) and the commits since your last one (`git log --oneline <your last commit>..origin/<branch>`). Tier 1 of `/sweep-pr-comments` fixes simple review comments in a fresh session, so this session did not see those changes.
-- If the user says "clean the work log", run `/work-log clean --confirmed`, and tell it that the user asked.
-
 ### Phase 1 — Load the issue ⟨ph:92c74439⟩
 
 If `$ARGUMENTS` matches the URL or ID pattern of the adapter (Identify):
@@ -250,7 +248,7 @@ After the last step, run Phase 7's full test suite with the stamp rules once, th
 
 Start this phase when the merge check prints `yes`, or when the user says that the PR is merged or asks to run the dev tests. If the merge check still runs, stop it with TaskStop.
 
-1. Run `/work-log status`. It reads the PR state from GitHub and sets `status: merged` and `mergedAt`.
+1. Run `/work-log status`. It reads the PR state from GitHub, sets the branch to `merged`, and records the transition.
 2. If the entry is still not `merged`, tell the user that GitHub does not show the PR as merged. If the user confirms the merge, run `/work-log update --branch <branch> --status merged`.
 3. If the user already asked for the dev tests, go to step 4. Otherwise ask:
 

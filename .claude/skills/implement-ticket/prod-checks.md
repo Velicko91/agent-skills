@@ -26,7 +26,7 @@ Read each source before you write a check:
 
 ```
 ## Prod checks — <TICKET> <title>
-PR: <url> · merged <mergedAt> · dev-tested <devTestedAt>
+PR: <url> · merged <enteredAt of merged> · dev-tested <enteredAt of dev-tested>
 
 - [ ] 1. Deploy — the prod release contains <short merge sha>: <how to see it, for example the image tag in ArgoCD>
 - [ ] 2. Feature flag — `<flag>` is `<value>` for <scope>
