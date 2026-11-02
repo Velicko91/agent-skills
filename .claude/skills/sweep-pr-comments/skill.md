@@ -54,7 +54,7 @@ This skill keeps two fields on a branch:
 3. Skip a branch when `sweepLockedAt` is less than 2 hours old. Another run owns it.
 4. Treat a lock that is 2 hours old or older as stale. `lock` takes it over.
 
-Parse each `pr` URL: `https://github.com/<owner>/<repo>/pull/<number>`. If the URL does not match, report the entry as `skipped: bad URL`.
+Parse each `pr` URL: `https://github.com/<owner>/<repo>/pull/<number>`. If the URL does not match, report the branch as `skipped: bad URL`.
 
 ### Step 2 — Check each PR (cheap)
 
@@ -108,8 +108,8 @@ The expensive PR session handles only the comments that need its history. Tier 1
 If a list has ids:
 
 1. Run `$W lock --branch <branch>`. If it exits 1, another run took the PR after Step 1. Record `skipped: locked`, and go to the next PR.
-2. Choose the folder: the `worktree` of the entry, else its `sessionCwd`. If both are `null`, record `failed: no folder`.
-3. Check that the PR branch is checked out there: `git -C "<folder>" branch --show-current` must print the `branch` of the entry. If it does not, record `failed: <branch> not checked out in <folder>`, because the fixes would go to the wrong branch.
+2. Choose the folder: the `worktree` of the branch, else its `sessionCwd`. If both are `null`, record `failed: no folder`.
+3. Check that the PR branch is checked out there: `git -C "<folder>" branch --show-current` must print the `branch` field. If it does not, record `failed: <branch> not checked out in <folder>`, because the fixes would go to the wrong branch.
 4. Find the design document. Search the root, `docs/`, and `notes/` of the folder and of the main checkout (the first entry of `git -C "<folder>" worktree list`), because untracked documents stay in the checkout where they were written. Take the first `.md` file whose name holds the `key` of the branch (for example `plan-<key>.md`), else the slug of the branch (the part after `<key>-`, for example `design-alignment-add-pagination.md`). Compare without case, because branch names can hold the ID in lowercase (`proj-490`).
 5. **Tier 1 — a fresh session.** Do not resume the PR session here:
 
@@ -118,13 +118,13 @@ If a list has ids:
    ```
 
    Add `--design` only if step 4 found a document. Take the last `ESCALATE:` line of the output.
-6. **Tier 2 — the PR session, only if `ESCALATE:` lists ids.** Resume the session of the entry, in its `sessionCwd`, because `claude --resume` finds a session only from the folder that owns it:
+6. **Tier 2 — the PR session, only if `ESCALATE:` lists ids.** Resume the session of the branch, in its `sessionCwd`, because `claude --resume` finds a session only from the folder that owns it:
 
    ```bash
    cd "<sessionCwd>" && claude --resume "<sessionId>" --permission-mode acceptEdits -p "/fix-pr-comments <number> --unattended --only <ids>"
    ```
 
-   If the entry has no `sessionId`, use `session`. If the session is not found, record `escalated: <ids> — PR session not found`; do not start a new session for tier 2, because a new session has no history.
+   If the branch has no `sessionId`, use `session`. If the session is not found, record `escalated: <ids> — PR session not found`; do not start a new session for tier 2, because a new session has no history.
 7. If a command fails, or the `ESCALATE:` line is missing, record `failed: <short reason>`.
 8. If tier 1 (and tier 2, if it ran) succeeded, set `sweepCheckedAt` to the time at the start of Step 2 for this PR: `$W update --branch <branch> --set sweepCheckedAt=<ISO time>`.
 9. Always run `$W unlock --branch <branch>` after the commands end, also after a failure.

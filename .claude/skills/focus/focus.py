@@ -237,6 +237,8 @@ def collect(config):
         if status not in OPEN_STATUSES:
             continue
         ticket = e.get("key") or ""
+        if any(i["key"] == ticket.upper() and i["tier"] == "incident" for i in items):
+            continue
         w = ws.get(e.get("session") or "") or next(
             (v for t, v in ws.items() if t == ticket or t.startswith((ticket + "-", ticket + " "))), None)
         item = {"key": ticket, "title": title or e.get("branch"), "status": status,
@@ -308,11 +310,13 @@ def ping(items, data):
     pauses = active_pauses(state)
     repeat = timedelta(hours=data["config"]["repingHours"])
     sent = []
-    due = [i for i in items if i["attention"] and not is_paused(i, pauses)]
+    def pinged_recently(item):
+        last = parse_time(state["pinged"].get(item["key"]))
+        return last is not None and NOW - last < repeat
+
+    # Skip the recent pings before the pingMax cut, so lower items still get a ping.
+    due = [i for i in items if i["attention"] and not is_paused(i, pauses) and not pinged_recently(i)]
     for i in due[:data["config"]["pingMax"]]:
-        last = parse_time(state["pinged"].get(i["key"]))
-        if last and NOW - last < repeat:
-            continue
         args = [CMUX, "notify", "--title", f"focus: {i['key']} ({i['tier']})",
                 "--body", f"{i['attention']}. Pause it: /focus pause {i['key']} <30m|4h|2d|1w>"]
         if i["ref"]:

@@ -133,7 +133,7 @@ Do this step only with `--resume` or `--fork`. The steps are the same for both f
 1. Use the exact matches. If there are none, use the entries that contain the value.
 2. If one entry matches, use it. Do not ask.
 3. If more than one entry matches, use the one with the latest `createdAt`. Say which one you used, and name the others.
-4. If no entry matches, run `~/.claude/skills/work-log/worklog.py list --key <value>`, because the session can belong to a finished item. Use its branches with rules 1–3.
+4. If no entry matches, run `~/.claude/skills/work-log/worklog.py list`, because the session can belong to a finished item. Match its branches with rules 1–3.
 5. If still no entry matches, STOP. List the entries, and ask which one to use.
 
 **If the flag has no value**, list the entries with the latest first:

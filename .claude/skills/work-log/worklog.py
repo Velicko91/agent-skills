@@ -32,6 +32,8 @@ A status change must be an edge of the state machine of the item or the branch (
 On the first run, the script imports ~/.claude/skills/work-log/data.json one time and renames it
 to data.json.migrated.
 """
+from __future__ import annotations
+
 import argparse
 import json
 import os
@@ -96,7 +98,7 @@ MIGRATIONS = [
         """CREATE TABLE items (
             id INTEGER PRIMARY KEY,
             type TEXT NOT NULL,
-            key TEXT NOT NULL UNIQUE,
+            key TEXT NOT NULL UNIQUE COLLATE NOCASE,
             title TEXT NOT NULL,
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -401,10 +403,16 @@ def import_once(conn, path: Path) -> None:
     """Import the old JSON log if the database has no items yet, then rename the file."""
     if not path.exists():
         return
-    with transaction(conn):
-        if conn.execute("SELECT 1 FROM items LIMIT 1").fetchone():
-            return
-        count = import_legacy(conn, json.loads(path.read_text()))
+    try:
+        log = json.loads(path.read_text())
+        with transaction(conn):
+            if conn.execute("SELECT 1 FROM items LIMIT 1").fetchone():
+                return
+            count = import_legacy(conn, log)
+    except (KeyError, TypeError, ValueError) as error:
+        raise WorklogError(
+            f"Cannot import {path}: {error!r}. Fix the file, or move it away to start an empty log."
+        ) from error
     path.rename(path.with_name(path.name + ".migrated"))
     print(f"Imported {count} branches from {path}.", file=sys.stderr)
 
@@ -416,9 +424,8 @@ def import_legacy(conn, log: dict) -> int:
     refuses. A current status with no date gets a transition at the time of the import.
     """
     imported_at = stamp(now())
-    seen = set()
-    entries = [(e, False) for e in log.get("active", [])] + [(e, True) for e in log.get("readyToDelete", [])]
-    for entry, ready in entries:
+    seen, entries = set(), []
+    for entry, ready in [(e, False) for e in log.get("active", [])] + [(e, True) for e in log.get("readyToDelete", [])]:
         if entry["branch"] in seen:
             continue
         seen.add(entry["branch"])
@@ -426,15 +433,18 @@ def import_legacy(conn, log: dict) -> int:
         if ready and entry["status"] == "merged":
             entry["status"] = "prod-tested"
             entry["prodTestedAt"] = entry.get("prodTestedAt") or entry.get("movedAt")
+        entry["createdAt"] = from_date(entry.get("createdAt")) or imported_at
+        entries.append(entry)
+    first = {}
+    for entry in entries:
+        ticket = entry["ticket"].casefold()
+        first[ticket] = min(first.get(ticket, entry["createdAt"]), entry["createdAt"])
+    for entry in entries:
         item = find_item(conn, entry["ticket"])
-        if item is None:
-            item_id = conn.execute(
-                "INSERT INTO items (type, key, title, status, created_at) VALUES ('ticket', ?, ?, 'open', ?)",
-                (entry["ticket"], entry.get("title") or entry["ticket"], imported_at),
-            ).lastrowid
-        else:
-            item_id = item["id"]
-        created = from_date(entry.get("createdAt")) or imported_at
+        item_id = item["id"] if item else insert_item(
+            conn, "ticket", entry["ticket"], entry.get("title") or entry["ticket"],
+            first[entry["ticket"].casefold()], {})
+        created = entry["createdAt"]
         data = {k: v for k, v in entry.items() if k not in LEGACY_DROP}
         branch_id = conn.execute(
             "INSERT INTO branches (item_id, branch, pr, status, worktree, session, session_id, "
@@ -451,17 +461,13 @@ def import_legacy(conn, log: dict) -> int:
             history.append((imported_at, entry["status"]))
         for at, status in history:
             add_transition(conn, item_id, branch_id, status, at)
-    items = conn.execute("SELECT id FROM items").fetchall()
-    for (item_id,) in items:
-        first = conn.execute("SELECT min(created_at) FROM branches WHERE item_id = ?", (item_id,)).fetchone()[0]
-        conn.execute("UPDATE items SET created_at = ? WHERE id = ?", (first, item_id))
-        add_transition(conn, item_id, None, "open", first)
+    for (item_id,) in conn.execute("SELECT id FROM items").fetchall():
         last = conn.execute(
             "SELECT max(entered_at) FROM transitions WHERE item_id = ? AND branch_id IS NOT NULL",
             (item_id,),
         ).fetchone()[0]
         refresh_item(conn, item_id, last)
-    return len(seen)
+    return len(entries)
 
 
 # --- Reads ---------------------------------------------------------------------------------
@@ -557,8 +563,10 @@ def list_items(conn, args) -> list:
         params += [args.status, args.status]
     if args.open:
         terminal = [(t, s) for t, spec in TYPES.items() for s in spec["terminal"]]
-        where.append("(i.type, i.status) NOT IN (VALUES " + ", ".join("(?, ?)" for _ in terminal) + ")")
-        params += [value for pair in terminal for value in pair]
+        # A finished item stays open while one of its branches is not finished.
+        where.append("((i.type, i.status) NOT IN (VALUES " + ", ".join("(?, ?)" for _ in terminal)
+                     + ") OR b.status NOT IN (" + ", ".join("?" for _ in BRANCH_FINISHED) + "))")
+        params += [value for pair in terminal for value in pair] + list(BRANCH_FINISHED)
     if args.search:
         # json_tree reads values only, so a key name such as "summary" does not match.
         where.append(

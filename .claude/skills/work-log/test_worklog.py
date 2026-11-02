@@ -100,6 +100,11 @@ class TicketTest(WorklogTest):
         self.assertEqual(item["status"], "open")
         self.assertEqual([t["status"] for t in item["transitions"]], ["open", "done", "open"])
 
+    def test_keys_ignore_case(self):
+        self.add_branch(key="proj-1234")
+        self.add_branch("feat/PROJ-1234-second-pr", key="PROJ-1234")
+        self.assertEqual(len(self.show("PROJ-1234")["branches"]), 2)
+
     def test_ticket_status_cannot_be_set_by_hand(self):
         self.add_branch()
         self.assertIn("automatic", self.refused("item", "update", "--key", "PROJ-1234", "--status", "done"))
@@ -178,6 +183,11 @@ class IncidentTest(WorklogTest):
         self.assertEqual((item["type"], item["branches"][0]["branch"]), ("incident", "fix/INC-1-pool-size"))
         self.ok("update", "--branch", "fix/INC-1-pool-size", "--status", "abandoned")
         self.assertEqual(self.show("INC-1")["status"], "investigating")
+
+    def test_a_resolved_incident_with_an_open_branch_stays_in_list_open(self):
+        self.add_branch("fix/INC-1-follow-up", key="INC-1")
+        self.ok("item", "update", "--key", "INC-1", "--status", "false-positive")
+        self.assertEqual([i["key"] for i in json.loads(self.ok("list", "--open"))], ["INC-1"])
 
     def test_status_lists_open_incidents(self):
         self.assertIn("🚨 Open incidents", self.ok("status"))
@@ -338,7 +348,7 @@ class StorageTest(WorklogTest):
     def test_a_failed_import_leaves_the_file_and_no_items(self):
         path = self.legacy({"active": [{"ticket": "PROJ-1"}], "readyToDelete": []})
         conn = worklog.connect(self.db)
-        with self.assertRaises(KeyError):
+        with self.assertRaisesRegex(worklog.WorklogError, "Cannot import"):
             worklog.import_once(conn, path)
         self.assertTrue(path.exists())
         self.assertIsNone(conn.execute("SELECT 1 FROM items").fetchone())
