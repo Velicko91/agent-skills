@@ -60,6 +60,10 @@ Write all output in Simplified Technical English (ASD-STE100).
 - If you compare code or text, show a unified diff instead of a table.
 - Show a difference in a table or a diff, not in prose.
 
+## cmux
+
+- If the user asks to pause or unpause this session, run `cmux-pause <4h | until <when> | off>`. Run `cmux-pause` with no arguments for the forms of `<when>`.
+
 ## Skills Management
 
 `$CLAUDE_CONFIG_REPO` is the checkout of this configuration repository. Set it in your
