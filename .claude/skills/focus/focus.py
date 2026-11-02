@@ -38,6 +38,8 @@ WORKLOG = Path(os.environ.get("FOCUS_WORKLOG", Path.home() / ".claude/skills/wor
 INCIDENT_LOG = Path(os.environ.get(
     "FOCUS_INCIDENT_LOG", Path.home() / ".claude/skills/investigate-incident/incident-log.local.md"))
 CMUX = os.environ.get("FOCUS_CMUX") or shutil.which("cmux") or "/Applications/cmux.app/Contents/Resources/bin/cmux"
+# transcript path -> {"offset", "runs", "deleted"}, so each run reads only the new bytes
+REMINDER_CACHE = Path(os.environ.get("FOCUS_CACHE", Path.home() / ".cache/focus/reminders.json"))
 # Written by cmux-pause in this folder: workspace id -> {"until": ISO time}
 PAUSE_STATE = Path(os.environ.get("CMUX_PAUSE_STATE", Path.home() / ".local/state/cmux-pause/pauses.json"))
 
@@ -173,22 +175,53 @@ def reminders():
         sessions = cmux_json("sessions", "list", "--agent", "claude").get("sessions", [])
     except SystemExit:
         return {}
-    result = {}
+    cache, scanned, result = load_cache(), {}, {}
     for s in sessions:
         path, ws_id = s.get("transcript_path"), (s.get("workspace_id") or "").upper()
         if not (path and ws_id and s.get("stored_pid_exists")) or not os.path.exists(path):
             continue
-        # Search the raw bytes: a transcript can be tens of MB, and most have no reminder.
-        text = Path(path).read_bytes()
-        if b"Next run:" not in text:
-            continue
-        runs = {job.decode(): when.decode() for job, when in SCHEDULED_RE.findall(text)}
-        deleted = {j.decode() for j in CRON_DELETE_RE.findall(text)}
-        future = [t for job, when in runs.items() if job not in deleted
+        entry = scanned[path] = scan_transcript(path, cache.get(path))
+        future = [t for job, when in entry["runs"].items() if job not in entry["deleted"]
                   for t in [next_run(when)] if t > NOW]
         if future:
             result[ws_id] = min([*future, result.get(ws_id, future[0])])
+    save_cache(scanned)
     return result
+
+
+def scan_transcript(path, entry):
+    """Add the jobs in the bytes written since the last scan. A transcript can be tens of MB.
+
+    A file shorter than the last offset was rewritten, so the scan starts again from byte 0.
+    A partial last line waits for the next scan, so a regex never sees half a line.
+    """
+    size = os.path.getsize(path)
+    if not entry or size < entry["offset"]:
+        entry = {"offset": 0, "runs": {}, "deleted": []}
+    with open(path, "rb") as f:
+        f.seek(entry["offset"])
+        chunk = f.read(size - entry["offset"])
+    chunk = chunk[:chunk.rfind(b"\n") + 1]
+    entry["runs"].update({job.decode(): when.decode() for job, when in SCHEDULED_RE.findall(chunk)})
+    entry["deleted"] = sorted({*entry["deleted"], *(j.decode() for j in CRON_DELETE_RE.findall(chunk))})
+    entry["offset"] += len(chunk)
+    return entry
+
+
+def load_cache():
+    try:
+        return json.loads(REMINDER_CACHE.read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def save_cache(cache):
+    """Keep only the live transcripts. Write a temporary file and move it, so a crash keeps the old cache."""
+    REMINDER_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=REMINDER_CACHE.parent, suffix=".tmp")
+    with os.fdopen(fd, "w") as f:
+        json.dump(cache, f)
+    os.replace(tmp, REMINDER_CACHE)
 
 
 def resolved_incidents():
