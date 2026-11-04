@@ -79,7 +79,7 @@ class TicketTest(WorklogTest):
     def test_update_refuses_a_move_that_is_not_an_edge(self):
         self.add_branch()
         err = self.refused("update", "--branch", "feat/PROJ-1234-add-pagination", "--status", "dev-tested")
-        self.assertIn("in-progress → dev-tested is not allowed. Next: in-review, merged, abandoned", err)
+        self.assertIn("in-progress → dev-tested is not allowed. Next: in-review, merged, abandoned, handed-off", err)
         self.assertEqual(self.show("PROJ-1234")["branches"][0]["status"], "in-progress")
 
     def test_update_with_force_allows_any_move(self):
@@ -145,6 +145,54 @@ class TicketTest(WorklogTest):
         item = self.show("PROJ-1234")
         self.assertEqual(item["branches"][0]["durations"], {"in-progress": 3600})
         self.assertEqual(item["durations"], {"open": 3600})
+
+
+class HandoffTest(WorklogTest):
+    def test_handoff_moves_each_unfinished_branch_and_finishes_the_ticket(self):
+        self.add_branch()
+        self.add_branch("feat/PROJ-1234-second-pr")
+        self.add_branch("feat/PROJ-1234-third-pr")
+        self.ok("update", "--branch", "feat/PROJ-1234-second-pr", "--pr", PR, "--status", "in-review")
+        self.ok("update", "--branch", "feat/PROJ-1234-third-pr", "--status", "abandoned")
+        out = json.loads(self.ok("handoff", "--key", "proj-1234", "--to", "alice"))
+        self.assertEqual(out["handedTo"], "alice")
+        self.assertEqual(
+            [(b["branch"], b["pr"], b["from"]) for b in out["branches"]],
+            [("feat/PROJ-1234-add-pagination", None, "in-progress"),
+             ("feat/PROJ-1234-second-pr", PR, "in-review")])
+        item = self.show("PROJ-1234")
+        self.assertEqual(item["status"], "done")
+        self.assertEqual([b["status"] for b in item["branches"]], ["handed-off", "handed-off", "abandoned"])
+        self.assertEqual(item["branches"][0]["handedTo"], "alice")
+
+    def test_handoff_refuses_a_ticket_with_no_unfinished_branch(self):
+        self.add_branch()
+        self.ok("update", "--branch", "feat/PROJ-1234-add-pagination", "--status", "abandoned")
+        self.assertIn("no unfinished branch", self.refused("handoff", "--key", "PROJ-1234", "--to", "alice"))
+
+    def test_handoff_refuses_an_empty_person(self):
+        self.add_branch()
+        self.assertIn("needs handedTo", self.refused("handoff", "--key", "PROJ-1234", "--to", " "))
+        self.assertEqual(self.show("PROJ-1234")["branches"][0]["status"], "in-progress")
+
+    def test_update_to_handed_off_needs_handed_to_also_with_force(self):
+        self.add_branch()
+        branch = "feat/PROJ-1234-add-pagination"
+        self.assertIn("needs handedTo", self.refused("update", "--branch", branch, "--status", "handed-off", "--force"))
+        self.ok("update", "--branch", branch, "--status", "handed-off", "--set", "handedTo=alice")
+        self.assertEqual(self.show("PROJ-1234")["branches"][0]["status"], "handed-off")
+
+    def test_a_handed_off_branch_can_be_taken_back(self):
+        self.add_branch()
+        self.ok("handoff", "--key", "PROJ-1234", "--to", "alice")
+        self.ok("update", "--branch", "feat/PROJ-1234-add-pagination", "--status", "in-progress")
+        item = self.show("PROJ-1234")
+        self.assertEqual((item["status"], item["branches"][0]["status"]), ("open", "in-progress"))
+
+    def test_status_hides_handed_off_work(self):
+        self.add_branch()
+        self.ok("handoff", "--key", "PROJ-1234", "--to", "alice")
+        self.assertIn("Open work: none", self.ok("status"))
 
 
 class IncidentTest(WorklogTest):

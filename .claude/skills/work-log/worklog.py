@@ -13,6 +13,8 @@ Usage:
                                         to the item with that key, else to a new ticket.
   worklog.py update --branch B [--pr URL] [--status S] [--worktree P] [--session-id ID]
                     [--set K=V ...] [--force]
+  worklog.py handoff --key K --to P     Set each unfinished branch of K to handed-off, with handedTo=P.
+                                        Print the moved branches as JSON.
   worklog.py merged --branch B          Read the PR state of one branch. Print yes, no, or closed.
   worklog.py item add --type T --key K --title T [--set K=V ...]
   worklog.py item update --key K [--title T] [--status S] [--set K=V ...] [--force]
@@ -52,15 +54,18 @@ TIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 LOCK_STALE = timedelta(hours=2)
 
 BRANCH_MACHINE = {
-    "in-progress": ("in-review", "merged", "abandoned"),
-    "in-review": ("in-progress", "merged", "abandoned"),
-    "merged": ("dev-tested", "prod-tested"),
-    "dev-tested": ("prod-tested", "merged"),
+    "in-progress": ("in-review", "merged", "abandoned", "handed-off"),
+    "in-review": ("in-progress", "merged", "abandoned", "handed-off"),
+    "merged": ("dev-tested", "prod-tested", "handed-off"),
+    "dev-tested": ("prod-tested", "merged", "handed-off"),
     "prod-tested": (),
     "abandoned": ("in-progress",),
+    "handed-off": ("in-progress",),
 }
 BRANCH_OPEN = ("in-progress", "in-review")
-BRANCH_FINISHED = ("prod-tested", "abandoned")
+# A handed-off branch is finished for this log, because another person owns the rest of the work.
+BRANCH_FINISHED = ("prod-tested", "abandoned", "handed-off")
+BRANCH_REQUIRED = {"handed-off": ("handedTo",)}
 BRANCH_WAITING = {"merged": "dev test", "dev-tested": "prod test"}
 
 # One entry for each item type. The first state of `transitions` is the initial state; `required` holds
@@ -254,7 +259,8 @@ def check_move(machine: dict, current: str, new: str, force: bool) -> None:
 
 
 def check_required(type_: str, status: str, data: dict) -> None:
-    missing = [field for field in TYPES[type_]["required"].get(status, ()) if not data.get(field)]
+    required = BRANCH_REQUIRED if type_ == "branch" else TYPES[type_]["required"]
+    missing = [field for field in required.get(status, ()) if not data.get(field)]
     if missing:
         raise WorklogError(
             f"{status} needs {', '.join(missing)}. Add them with --set {missing[0]}=<text>."
@@ -587,7 +593,7 @@ def types_json() -> dict:
         "branch": {
             "transitions": {s: list(n) for s, n in BRANCH_MACHINE.items()},
             "terminal": list(BRANCH_FINISHED),
-            "required": {},
+            "required": {s: list(f) for s, f in BRANCH_REQUIRED.items()},
             "automatic": None,
         }
     }
@@ -671,6 +677,9 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--session-id")
     update.add_argument("--set", dest="changes", action="append", default=[])
     update.add_argument("--force", action="store_true")
+    handoff = sub.add_parser("handoff")
+    handoff.add_argument("--key", required=True)
+    handoff.add_argument("--to", required=True)
     for name in ("merged", "lock", "unlock"):
         sub.add_parser(name).add_argument("--branch", required=True)
     item = sub.add_parser("item").add_subparsers(dest="item_cmd", required=True)
@@ -719,8 +728,29 @@ def cmd_update(conn, args) -> None:
             (args.pr, args.worktree, args.session_id, cwd, json.dumps(data), branch["id"]),
         )
         if args.status:
+            check_required("branch", args.status, data)
             set_branch_status(conn, branch, args.status, args.force)
     print(f"Updated {branch['key']} ({args.branch}).")
+
+
+def cmd_handoff(conn, args) -> None:
+    with transaction(conn):
+        item = get_item(conn, args.key)
+        branches = [
+            b for b in conn.execute("SELECT * FROM branches WHERE item_id = ? ORDER BY id", (item["id"],))
+            if b["status"] not in BRANCH_FINISHED
+        ]
+        if not branches:
+            raise WorklogError(f"{item['key']} has no unfinished branch to hand off.")
+        moved = []
+        for branch in branches:
+            data = apply_set(json.loads(branch["data"]), {"handedTo": args.to.strip()})
+            check_required("branch", "handed-off", data)
+            conn.execute("UPDATE branches SET data = ? WHERE id = ?", (json.dumps(data), branch["id"]))
+            set_branch_status(conn, branch, "handed-off")
+            moved.append({"branch": branch["branch"], "pr": branch["pr"], "worktree": branch["worktree"],
+                          "from": branch["status"]})
+    print(json.dumps({"key": item["key"], "handedTo": args.to.strip(), "branches": moved}, indent=2))
 
 
 def cmd_item_add(conn, args) -> None:
@@ -789,6 +819,8 @@ def run(conn, args) -> int:
         cmd_add(conn, args)
     elif args.cmd == "update":
         cmd_update(conn, args)
+    elif args.cmd == "handoff":
+        cmd_handoff(conn, args)
     elif args.cmd == "merged":
         print(merged(conn, args.branch))
     elif args.cmd == "lock":
