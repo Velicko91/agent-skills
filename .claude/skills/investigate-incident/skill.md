@@ -13,6 +13,7 @@ Find the cause of an incident in one service, and the fix. Start from what past 
 ## Hard rules
 
 - Run reads without asking: `/query-db`, `/get-gcloud-logs`, Slack search and read, incident.io reads, dnote, `gh`, and `git`. They change nothing.
+- If you find a probable cause, validate it at once with `/query-db` and `/get-gcloud-logs`. NEVER wait for permission, because these reads change nothing.
 - NEVER run a fix, post to Slack, change incident.io, or write to a database or a cluster without a yes in this conversation, because these actions affect production and other people.
 - Use `/query-db` for database reads. NEVER write to a database.
 - A match with a past incident is a hypothesis. Confirm each cause with evidence: a query result, a log line, or a `file:line` reference.
@@ -73,7 +74,8 @@ The investigation reads the dev database first, and prod only if the evidence is
 
 1. Parse the input: an incident ID, a Slack link, an alert ID, and any pasted context.
 2. Find the service from `--service`, the incident's affected service, the alert source, or the `aliases`. If two services match, or none, ask. STOP and WAIT.
-3. Create the working folder: `mkdir -p /tmp/investigate-incident/inc-<number>`.
+3. Set the scope to the symptom of the incident title and its first alert. If incident.io grouped another alert in by key (`alert_show` gives `joined_by: key`) and its symptom is different, list it as "Other attached alerts" and do not investigate it. A grouping key, such as priority and source, does not show a shared cause. Investigate it only if the user asks.
+4. Create the working folder: `mkdir -p /tmp/investigate-incident/inc-<number>`.
 
 ### Phase 2 — Read what is already known ⟨ph:9cfcbcb4⟩
 
@@ -102,19 +104,23 @@ Run Phases 3 and 4 to the end, then show the report.
 
 1. List two to five hypotheses, ranked by evidence. Put a matching cause from the knowledge file first.
 2. For each one, find the evidence that confirms it or rules it out. Use the "Diagnostic queries" of the knowledge file first, with `/query-db`. Fetch logs around the failure with `/get-gcloud-logs`, and read the code there. Search Slack for the same symptom. If a hypothesis needs more data, run more reads.
-3. Stop a hypothesis when the evidence rules it out, and write one line on why.
-4. Convert relative times to absolute times, from the incident start time in incident.io.
-5. If the cause is a defect, find the merged PR that added it: `git log -S "<code>"` or `git blame` on the failing lines, then `gh pr list --search <sha> --state merged`.
-6. Find an open PR that fixes the cause: search open PRs on the failing files and the incident ID.
-7. For each PR from step 5 or 6, record the link and the author with `gh pr view <n> --json url,author,mergedAt`.
-8. If a feature flag can fix the cause, find the commit that added it: `git log -S "<FLAG_NAME>" --reverse --format='%h %an %ad' | head -1`. Find its PR with `gh pr list --search <sha> --state merged`. Record the PR link and the author.
-9. Assess the level from the evidence, with the severity names of incident.io: the users or accounts affected, the money at risk, and whether the impact continues.
-10. Focus the fix on the current incident: stop the impact and repair the data. Write the long-term fix as one line.
-11. If the most likely cause is a false positive that time can confirm, schedule one recheck. Examples: a job that has not run yet, a consumer that lags, a retry that is still pending.
+3. If a hypothesis becomes the probable cause, validate it before the report:
+   - Run `/query-db` to find the affected rows, and how many.
+   - Run `/get-gcloud-logs` to find the failing requests or errors in the incident window.
+   - If the result does not confirm the cause, lower its rank and validate the next hypothesis.
+4. Stop a hypothesis when the evidence rules it out, and write one line on why.
+5. Convert relative times to absolute times, from the incident start time in incident.io.
+6. If the cause is a defect, find the merged PR that added it: `git log -S "<code>"` or `git blame` on the failing lines, then `gh pr list --search <sha> --state merged`.
+7. Find an open PR that fixes the cause: search open PRs on the failing files and the incident ID.
+8. For each PR from step 6 or 7, record the link and the author with `gh pr view <n> --json url,author,mergedAt`.
+9. If a feature flag can fix the cause, find the commit that added it: `git log -S "<FLAG_NAME>" --reverse --format='%h %an %ad' | head -1`. Find its PR with `gh pr list --search <sha> --state merged`. Record the PR link and the author.
+10. Assess the level from the evidence, with the severity names of incident.io: the users or accounts affected, the money at risk, and whether the impact continues.
+11. Focus the fix on the current incident: stop the impact and repair the data. Write the long-term fix as one line.
+12. If the most likely cause is a false positive that time can confirm, schedule one recheck. Examples: a job that has not run yet, a consumer that lags, a retry that is still pending.
     - Set the time to when the confirming read can show the result, from the evidence, for example the next job run plus 10 minutes.
     - Call `CronCreate` with `recurring: false` and this prompt: `Recheck <INC-ID> (<service>): run <the reads>. False positive if <expected result>.`
     - Record the job ID and the time from the `CronCreate` result. Put them in the report.
-12. If the incident has an incident.io ID and its status is not closed, schedule the resolve check (see "Resolve check"). Put the job ID in the report.
+13. If the incident has an incident.io ID and its status is not closed, schedule the resolve check (see "Resolve check"). Put the job ID in the report.
 
 ### CHECKPOINT ⟨ph:ed3f0b04⟩
 
@@ -164,6 +170,7 @@ Remove "Related PRs" if no PR caused the defect, fixes it, or added a recommende
 
 - If the user gives new context, go back to Phase 3 or 4 with it.
 - If the user approves a fix, give the exact steps or code. Put the `exec` alias of the env before each command that runs inside a pod. The user or the service's tools run the change, because `/query-db` only reads. If the fix corrects data and a dnote runbook of the service holds a `fix()` function, write the correction in the same pattern, with the incident ID and a comment that says what it does and when it is safe to run.
+- Write each fix script with no empty lines, also between imports and between blocks, because an empty line ends a function in an interactive shell such as `flask shell`.
 - Continue until the user says that the incident is solved, for example "solved", "fixed", "resolved", or "update the doc", or until the resolve check finds the incident resolved.
 
 ### Recheck
