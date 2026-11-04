@@ -1,6 +1,11 @@
 {
-  "_comment": "Copy to data.json. boards are tracker team keys, in priority order. tiers is the full rank order: incident, prod-test, each board key, other.",
+  "_comment": "Copy to data.json. groups are cmux workspace group names, in priority order, for the session table. boards are tracker team keys, in priority order. tiers is the full rank order of 'focus items': incident, prod-test, each board key, other. daemon.days are ISO weekdays (1 = Monday).",
   "config": {
+    "groups": [
+      "incident",
+      "work",
+      "util"
+    ],
     "boards": [
       "PROJ",
       "ARCH"
@@ -19,7 +24,12 @@
       "waitingMinutes": 15
     },
     "repingHours": 2,
-    "pingMax": 3
+    "pingMax": 3,
+    "daemon": {
+      "everyMinutes": 30,
+      "activeHours": "09:00-19:00",
+      "days": "1-5"
+    }
   },
   "state": {
     "pauses": {},

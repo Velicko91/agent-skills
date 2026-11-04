@@ -1,28 +1,37 @@
 #!/usr/bin/python3
-"""Ranks open work and incidents, flags idle items, and pings for them.
+"""Ranks the open cmux sessions, and pings for the ones that need you.
+
+focus.sh in this folder switches cmux to a row of the table that this script stores.
 
 Usage:
-  focus.py                       Print the ranked list of open items.
-  focus.py --idle                Print only the items that need attention.
-  focus.py --ping                Send a cmux notification for each item that needs attention
+  focus                          Print the session table: active, then idle, then paused.
+                                 Store it in board.tsv for focus.sh.
+  focus items [--attention]      Print the ranked work log items. --attention: only the
+                                 items that need attention and are not paused.
+  focus --ping                   Send a cmux notification for each item that needs attention
                                  and was not pinged in the last repingHours, at most pingMax items,
-                                 highest rank first. For the loop job.
-  focus.py pause <key> <dur>     Hide an item for a duration: 30m, 4h, 2d, 1w.
-  focus.py resume <key>          End a pause now.
-  focus.py pauses                List the active pauses.
+                                 highest rank first. The daemon runs it.
+  focus daemon install [<min>]   Run --ping every <min> minutes with launchd. Default: daemon.everyMinutes.
+  focus daemon uninstall         Stop the daemon.
+  focus daemon status            Show if the daemon is loaded.
+  focus pause <key> <dur>        Hide an item for a duration: 30m, 4h, 2d, 1w.
+  focus resume <key>             End a pause now.
+  focus pauses                   List the active pauses.
 
 <key> is a ticket key (PROJ-1234) or an incident reference (INC-123).
 
 Sources, all read-only:
   ~/.claude/skills/work-log/worklog.py list --open           work sessions
   ~/.claude/skills/investigate-incident/incident-log.local.md resolved incidents
-  cmux workspaces                                            sessions and their last activity
+  cmux windows, workspaces, and groups                       sessions and their last activity
   cmux sessions + Claude transcripts                         reminders set with CronCreate
 
-The script writes only its own data.json: the pauses and the last ping times.
+The script writes its own data.json (the pauses and the last ping times), the table of the
+last print, and the launchd job of the daemon.
 """
 import json
 import os
+import plistlib
 import re
 import shutil
 import subprocess
@@ -40,8 +49,14 @@ INCIDENT_LOG = Path(os.environ.get(
 CMUX = os.environ.get("FOCUS_CMUX") or shutil.which("cmux") or "/Applications/cmux.app/Contents/Resources/bin/cmux"
 # transcript path -> {"offset", "runs", "deleted"}, so each run reads only the new bytes
 REMINDER_CACHE = Path(os.environ.get("FOCUS_CACHE", Path.home() / ".cache/focus/reminders.json"))
+# The rows of the last printed table, so focus.sh switches to the row the user saw.
+# One line for each row, tab-separated: n, section, needs input (1 or 0), ref, window, id, title
+BOARD = REMINDER_CACHE.parent / "board.tsv"
 # Written by cmux-pause in this folder: workspace id -> {"until": ISO time}
 PAUSE_STATE = Path(os.environ.get("CMUX_PAUSE_STATE", Path.home() / ".local/state/cmux-pause/pauses.json"))
+LABEL = "local.focus"
+PLIST = Path.home() / f"Library/LaunchAgents/{LABEL}.plist"
+LOG = Path.home() / "Library/Logs/focus.log"
 
 INCIDENT_RE = re.compile(r"^(INC-\d+)\b", re.I)
 KEY_RE = re.compile(r"^([A-Z][A-Z0-9]+-\d+)\b")
@@ -50,6 +65,10 @@ PAUSED_RE = re.compile(r"\bpaused\b", re.I)  # the word in a workspace title pau
 SCHEDULED_RE = re.compile(rb"Scheduled [\w -]*?task ([0-9a-f]{8}) \([^)]*\)\. Next run: (\w{3} \d{1,2} \d{1,2}:\d{2}[ap]m)")
 CRON_DELETE_RE = re.compile(rb'"name":\s*"CronDelete",\s*"input":\s*\{[^}]*"id":\s*"([0-9a-f]{8})"')
 NEEDS_INPUT = ("Needs input", "Waiting")
+ACTIVE = (*NEEDS_INPUT, "Running")
+SECTIONS = ("active", "idle", "paused")
+DEFAULT_GROUPS = ["incident", "work", "util"]
+DEFAULT_DAEMON = {"everyMinutes": 30, "activeHours": "09:00-19:00", "days": "1-5"}
 OPEN_STATUSES = ("in-progress", "in-review", "merged", "dev-tested")
 TEST_WAIT = {"merged": "dev test", "dev-tested": "prod test"}
 
@@ -70,12 +89,18 @@ def load_data():
     return data
 
 
-def save_data(data):
-    fd, tmp = tempfile.mkstemp(dir=DATA.parent, prefix=".data.", suffix=".json")
+def write_json(path, value, indent=None):
+    """Write a temporary file and move it, so a crash keeps the old file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}.", suffix=".json")
     with os.fdopen(fd, "w") as f:
-        json.dump(data, f, indent=2)
+        json.dump(value, f, indent=indent)
         f.write("\n")
-    os.replace(tmp, DATA)
+    os.replace(tmp, path)
+
+
+def save_data(data):
+    write_json(DATA, data, indent=2)
 
 
 def parse_time(value):
@@ -105,29 +130,56 @@ def age(dt):
     return f"{s // 86400}d"
 
 
-def cmux_json(*args):
+def local(dt):
+    return dt.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+
+
+def cmux_run(*args):
     try:
-        out = subprocess.run([CMUX, "--json", *args], capture_output=True, text=True, timeout=20,
+        out = subprocess.run([CMUX, *args], capture_output=True, text=True, timeout=20,
                              env={**os.environ, "CMUX_QUIET": "1"})
     except (OSError, subprocess.TimeoutExpired) as e:
         die(f"cmux failed: {e}")
     if out.returncode != 0:
-        die(f"cmux {' '.join(args)} failed: {out.stderr.strip()}")
-    return json.loads(out.stdout)
+        die(f"cmux {' '.join(args)} failed: {out.stderr.strip() or out.stdout.strip()}")
+    return out.stdout
 
 
-def workspaces():
-    """title -> {ref, last (datetime or None), state, paused, remind, until (datetime or None)}"""
-    result = {}
-    remind = reminders()
-    until = cmux_pauses()
-    for w in cmux_json("workspace", "list").get("workspaces", []):
-        title = w.get("custom_title") or w.get("title") or ""
-        result[title] = {"ref": w.get("ref"), "id": w.get("id"),
-                         "last": parse_time(w.get("latest_submitted_at")), "state": "",
-                         "paused": bool(PAUSED_RE.search(title)),
-                         "remind": remind.get((w.get("id") or "").upper()),
-                         "until": until.get((w.get("id") or "").upper())}
+def cmux_json(*args):
+    return json.loads(cmux_run("--json", *args))
+
+
+def all_workspaces():
+    """Each workspace in each window, minus the generated anchor workspace of each group.
+
+    Each one is a dict: ref, id, window, title, group, last, agent (the Claude state that cmux
+    shows), state (the agent state if it is a NEEDS_INPUT state, else ""), paused, remind, until.
+    """
+    remind, until, agents = reminders(), cmux_pauses(), agent_states()
+    result = []
+    for win in cmux_json("list-windows"):
+        wid = win["id"]
+        groups = cmux_json("workspace", "group", "list", "--window", wid).get("groups", [])
+        anchors = {g.get("anchor_workspace_ref") for g in groups
+                   if g.get("anchor_workspace_provenance") == "generated"}
+        group_of = {ref: g["name"] for g in groups for ref in g.get("member_workspace_refs", [])}
+        for w in cmux_json("workspace", "list", "--window", wid).get("workspaces", []):
+            if w.get("ref") in anchors:
+                continue
+            ws_id = (w.get("id") or "").upper()
+            title = w.get("custom_title") or w.get("title") or ""
+            agent = agents.get(ws_id, "")
+            result.append({"ref": w.get("ref"), "id": ws_id, "window": wid, "title": title,
+                           "group": group_of.get(w.get("ref"), ""),
+                           "last": parse_time(w.get("latest_submitted_at")), "agent": agent,
+                           "state": agent if agent in NEEDS_INPUT else "",
+                           "paused": bool(PAUSED_RE.search(title)),
+                           "remind": remind.get(ws_id), "until": until.get(ws_id)})
+    return result
+
+
+def agent_states():
+    """workspace id -> the Claude state of its session: Needs input, Waiting, Running, or Idle."""
     try:
         out = subprocess.run([CMUX, "top", "--all", "--format", "tsv"], capture_output=True,
                              text=True, timeout=20, env={**os.environ, "CMUX_QUIET": "1"}).stdout
@@ -139,11 +191,8 @@ def workspaces():
         if len(f) > 6 and f[3] == "tag" and ":tag:" in f[4]:
             owner, key = f[4].rsplit(":tag:", 1)
             if key in ("claude_code", "agent"):
-                tags.setdefault(owner.split(":", 1)[-1], []).append(f[6])
-    for w in result.values():
-        states = tags.get(w["id"], [])
-        w["state"] = next((s for s in NEEDS_INPUT if s in states), "")
-    return result
+                tags.setdefault(owner.split(":", 1)[-1].upper(), []).append(f[6])
+    return {ws: next((s for s in (*ACTIVE, "Idle") if s in states), "") for ws, states in tags.items()}
 
 
 def cmux_pauses():
@@ -158,9 +207,9 @@ def cmux_pauses():
 
 def next_run(text):
     """'Nov 2 9:59am' in local time -> the next such datetime in UTC."""
-    local = datetime.now().astimezone()
-    t = datetime.strptime(f"{local.year} {text}", "%Y %b %d %I:%M%p").replace(tzinfo=local.tzinfo)
-    if t < local - timedelta(days=180):  # a December run read in January
+    local_now = datetime.now().astimezone()
+    t = datetime.strptime(f"{local_now.year} {text}", "%Y %b %d %I:%M%p").replace(tzinfo=local_now.tzinfo)
+    if t < local_now - timedelta(days=180):  # a December run read in January
         t = t.replace(year=t.year + 1)
     return t.astimezone(timezone.utc)
 
@@ -185,7 +234,7 @@ def reminders():
                   for t in [next_run(when)] if t > NOW]
         if future:
             result[ws_id] = min([*future, result.get(ws_id, future[0])])
-    save_cache(scanned)
+    write_json(REMINDER_CACHE, scanned)  # only the live transcripts
     return result
 
 
@@ -215,15 +264,6 @@ def load_cache():
         return {}
 
 
-def save_cache(cache):
-    """Keep only the live transcripts. Write a temporary file and move it, so a crash keeps the old cache."""
-    REMINDER_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=REMINDER_CACHE.parent, suffix=".tmp")
-    with os.fdopen(fd, "w") as f:
-        json.dump(cache, f)
-    os.replace(tmp, REMINDER_CACHE)
-
-
 def resolved_incidents():
     if not INCIDENT_LOG.exists():
         return set()
@@ -246,10 +286,11 @@ def board_of(ticket, boards):
     return prefix if prefix in boards else "other"
 
 
-def collect(config):
+def collect(config, all_ws):
+    """The work log items and the incident workspaces, ranked by config.tiers."""
     idle = config["idle"]
     boards = [b.upper() for b in config["boards"]]
-    ws = workspaces()
+    ws = {w["title"]: w for w in all_ws}
     items = []
 
     resolved = resolved_incidents()
@@ -304,9 +345,42 @@ def collect(config):
     return items
 
 
+def board(config, all_ws, pauses):
+    """The session table: active, then idle, then paused.
+
+    In each section the rows go in config.groups order, then the sessions that need input,
+    then the oldest last message. A workspace in no group is "incident" if its title starts
+    with INC-<n>, else "other", and "other" goes after the groups.
+    """
+    order = {g: n for n, g in enumerate(config.get("groups", DEFAULT_GROUPS))}
+    rows = []
+    for w in all_ws:
+        m = INCIDENT_RE.match(w["title"]) or KEY_RE.match(w["title"].upper())
+        row = {**w, "key": m.group(1).upper() if m else None,
+               "group": w["group"] or ("incident" if INCIDENT_RE.match(w["title"]) else "other")}
+        row["section"] = ("paused" if is_paused(row, pauses)
+                          else "active" if w["agent"] in ACTIVE else "idle")
+        rows.append(row)
+    rows.sort(key=lambda r: (SECTIONS.index(r["section"]), order.get(r["group"], len(order)),
+                             0 if r["state"] else 1, r["last"] or NOW))
+    return rows
+
+
 def is_paused(item, pauses):
     return (item["paused"] or item["remind"] is not None or item["until"] is not None
             or item["key"] in pauses)
+
+
+def pause_note(item, pauses):
+    if item["paused"]:
+        return "paused (workspace title)"
+    if item["until"]:
+        return f"paused until {local(item['until'])} (cmux-pause)"
+    if item["remind"]:
+        return f"paused: reminder at {local(item['remind'])}"
+    if item["key"] in pauses:
+        return f"paused until {local(parse_time(pauses[item['key']]))}"
+    return ""
 
 
 def active_pauses(state):
@@ -314,6 +388,40 @@ def active_pauses(state):
     for key in [k for k, v in pauses.items() if parse_time(v) <= NOW]:
         del pauses[key]
     return pauses
+
+
+def current_workspace():
+    return cmux_json("current-workspace")["workspace"]["id"].upper()
+
+
+def print_board(rows, pauses):
+    if not rows:
+        print("No open sessions.")
+        return
+    save_board(rows)
+    current = current_workspace()
+    print(f"{'#':>3}  {'group':<9} {'state':<12} {'last':>5}  workspace")
+    section = None
+    for n, r in enumerate(rows, 1):
+        if r["section"] != section:
+            section = r["section"]
+            print(f"--- {section}")
+        mark = "*" if r["id"] == current else " "
+        note = pause_note(r, pauses)
+        print(f"{mark}{n:>2}  {r['group']:<9} {(r['agent'] or 'no agent').lower():<12} "
+              f"{age(r['last']):>5}  {r['title']}{'  · ' + note if note else ''}")
+
+
+def save_board(rows):
+    """Write a temporary file and move it, so focus.sh never reads half a table."""
+    BOARD.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=BOARD.parent, prefix=".board.", suffix=".tsv")
+    with os.fdopen(fd, "w") as f:
+        for n, r in enumerate(rows, 1):
+            needs_input = "1" if r["section"] == "active" and r["state"] else "0"
+            title = re.sub(r"[\t\n]", " ", r["title"])
+            f.write("\t".join([str(n), r["section"], needs_input, r["ref"], r["window"], r["id"], title]) + "\n")
+    os.replace(tmp, BOARD)
 
 
 def print_items(items, pauses):
@@ -324,34 +432,49 @@ def print_items(items, pauses):
     items = sorted(items, key=lambda i: is_paused(i, pauses))
     print(f"{'#':>2}  {'tier':<9} {'key':<10} {'status':<11} {'last':>5}  attention / title")
     for n, i in enumerate(items, 1):
-        note = i["attention"] or i["title"]
-        if i["paused"]:
-            note = "paused (workspace title)"
-        elif i["until"]:
-            note = f"paused until {i['until'].astimezone().strftime('%Y-%m-%d %H:%M %Z')} (cmux-pause)"
-        elif i["remind"]:
-            note = f"paused: reminder at {i['remind'].astimezone().strftime('%Y-%m-%d %H:%M %Z')}"
-        elif i["key"] in pauses:
-            note = f"paused until {pauses[i['key']][:16].replace('T', ' ')} UTC"
-        elif i["attention"]:
-            note = f"!! {note} · /focus pause {i['key']} <30m|4h|2d|1w>"
+        note = pause_note(i, pauses)
+        if not note:
+            note = i["attention"] or i["title"]
+            if i["attention"]:
+                note = f"!! {note} · focus pause {i['key']} <30m|4h|2d|1w>"
         print(f"{n:>2}  {i['tier']:<9} {i['key']:<10} {i['status']:<11} {age(i['last']):>5}  {note}")
 
 
-def ping(items, data):
-    state = data["state"]
+def in_active_hours(daemon):
+    start, end = daemon["activeHours"].split("-")
+    first, last = (int(d) for d in daemon["days"].split("-"))
+    t = datetime.now().astimezone()
+    return first <= t.isoweekday() <= last and start <= t.strftime("%H:%M") < end
+
+
+def ping(items, rows, data):
+    """Ping the work log items with attention, then the other sessions that need input."""
+    config, state = data["config"], data["state"]
+    if not in_active_hours({**DEFAULT_DAEMON, **config.get("daemon", {})}):
+        print("outside the active hours: nothing pinged")
+        return
     pauses = active_pauses(state)
-    repeat = timedelta(hours=data["config"]["repingHours"])
+    repeat = timedelta(hours=config["repingHours"])
+    wait = timedelta(minutes=config["idle"]["waitingMinutes"])
+    keys = {i["key"] for i in items}
+    for r in rows:
+        key = r["key"] or r["title"]
+        if (r["section"] == "active" and r["state"] and key not in keys
+                and (r["last"] is None or NOW - r["last"] >= wait)):
+            items.append({**r, "key": key, "tier": r["group"],
+                          "attention": f"session {r['state'].lower()}"})
     sent = []
+
     def pinged_recently(item):
         last = parse_time(state["pinged"].get(item["key"]))
         return last is not None and NOW - last < repeat
 
     # Skip the recent pings before the pingMax cut, so lower items still get a ping.
     due = [i for i in items if i["attention"] and not is_paused(i, pauses) and not pinged_recently(i)]
-    for i in due[:data["config"]["pingMax"]]:
+    for i in due[:config["pingMax"]]:
+        how = f"focus pause {i['key']} <30m|4h|2d|1w>" if i["key"] in keys else "cmux-pause <4h|until mon>"
         args = [CMUX, "notify", "--title", f"focus: {i['key']} ({i['tier']})",
-                "--body", f"{i['attention']}. Pause it: /focus pause {i['key']} <30m|4h|2d|1w>"]
+                "--body", f"{i['attention']}. Pause it: {how}"]
         if i["ref"]:
             args += ["--workspace", i["ref"]]
         subprocess.run(args, capture_output=True, timeout=20, env={**os.environ, "CMUX_QUIET": "1"})
@@ -363,24 +486,53 @@ def ping(items, data):
     print("\n".join(sent) if sent else "nothing to ping")
 
 
+def daemon(argv, config):
+    sub = argv[0] if argv else ""
+    domain = f"gui/{os.getuid()}"
+    if sub == "install":
+        minutes = int(argv[1]) if len(argv) > 1 else {**DEFAULT_DAEMON, **config.get("daemon", {})}["everyMinutes"]
+        PLIST.parent.mkdir(parents=True, exist_ok=True)
+        PLIST.write_bytes(plistlib.dumps({
+            "Label": LABEL, "ProgramArguments": [str(Path(__file__).resolve()), "--ping"],
+            "StartInterval": minutes * 60, "StandardOutPath": str(LOG), "StandardErrorPath": str(LOG)}))
+        subprocess.run(["launchctl", "bootout", f"{domain}/{LABEL}"], capture_output=True)
+        out = subprocess.run(["launchctl", "bootstrap", domain, str(PLIST)], capture_output=True, text=True)
+        if out.returncode != 0:
+            die(f"launchctl bootstrap failed: {out.stderr.strip()}")
+        print(f"daemon runs focus --ping every {minutes}m. Log: {LOG}")
+    elif sub == "uninstall":
+        subprocess.run(["launchctl", "bootout", f"{domain}/{LABEL}"], capture_output=True)
+        PLIST.unlink(missing_ok=True)
+        print("daemon removed")
+    elif sub == "status":
+        out = subprocess.run(["launchctl", "print", f"{domain}/{LABEL}"], capture_output=True, text=True)
+        if out.returncode != 0:
+            print("daemon not loaded")
+            return
+        every = re.search(r"run interval = (\d+)", out.stdout)
+        print(f"daemon loaded, every {int(every.group(1)) // 60}m. Log: {LOG}" if every else "daemon loaded")
+    else:
+        die("usage: focus daemon <install [<minutes>]|uninstall|status>")
+
+
 def main(argv):
+    cmd = argv[0] if argv else ""
     data = load_data()
     state = data["state"]
-    cmd = argv[0] if argv else ""
 
     if cmd == "pause":
         if len(argv) != 3:
-            die("usage: focus.py pause <key> <30m|4h|2d|1w>")
+            die("usage: focus pause <key> <30m|4h|2d|1w>")
         key = argv[1].upper()
         until = NOW + parse_duration(argv[2])
         state["pauses"][key] = until.isoformat(timespec="seconds")
         state["pinged"].pop(key, None)
         save_data(data)
-        print(f"paused {key} until {until.astimezone().strftime('%Y-%m-%d %H:%M %Z')}")
+        print(f"paused {key} until {local(until)}")
         return
     if cmd == "resume":
         if len(argv) != 2:
-            die("usage: focus.py resume <key>")
+            die("usage: focus resume <key>")
         key = argv[1].upper()
         print(f"resumed {key}" if state["pauses"].pop(key, None) else f"{key} was not paused")
         save_data(data)
@@ -389,24 +541,30 @@ def main(argv):
         pauses = active_pauses(state)
         save_data(data)
         for k, v in sorted(pauses.items(), key=lambda kv: kv[1]):
-            print(f"{k:<10} until {parse_time(v).astimezone().strftime('%Y-%m-%d %H:%M %Z')}")
+            print(f"{k:<10} until {local(parse_time(v))}")
         if not pauses:
             print("no active pauses")
         return
-    if cmd and cmd not in ("--idle", "--ping"):
-        die(f"unknown command '{cmd}'. Use: (none), --idle, --ping, pause, resume, pauses")
-
-    items = collect(data["config"])
-    if cmd == "--ping":
-        ping(items, data)
+    if cmd == "daemon":
+        daemon(argv[1:], data["config"])
         return
+    if cmd not in ("", "items", "--ping"):
+        die(f"unknown command '{cmd}'. Use: (none), items, --ping, daemon, pause, resume, pauses")
+
+    all_ws = all_workspaces()
     pauses = active_pauses(state)
-    if cmd == "--idle":
-        items = [i for i in items if i["attention"] and not is_paused(i, pauses)]
-        if not items:
-            print("Nothing needs attention.")
-            return
-    print_items(items, pauses)
+    if cmd == "":
+        print_board(board(data["config"], all_ws, pauses), pauses)
+    elif cmd == "--ping":
+        ping(collect(data["config"], all_ws), board(data["config"], all_ws, pauses), data)
+    else:
+        items = collect(data["config"], all_ws)
+        if argv[1:] == ["--attention"]:
+            items = [i for i in items if i["attention"] and not is_paused(i, pauses)]
+            if not items:
+                print("Nothing needs attention.")
+                return
+        print_items(items, pauses)
 
 
 if __name__ == "__main__":
