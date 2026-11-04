@@ -201,7 +201,7 @@ Create the branch and the work-log entry as in Phase 6. Then run this loop once 
    git commit -m "<type>: <what the step does>" -m "Refs: <TICKET>" -m "<attribution line>"
    ```
    The subject is a Conventional Commit: no ticket between the type and the colon. NEVER push, because `/create-pr` pushes the branch.
-6. Report one line: `✅ Step 2/4 — <short sha> <subject> — tests: <N> passed — review: clean`
+6. Report one line: `✅ Step 2/4 — <short sha> (not pushed) <subject> — tests: <N> passed — review: clean`. The step is not pushed yet, so it has no link; the `/create-pr` report links it.
 
 A step is one logical change that builds and passes its own tests, usually 1–4 files, for example "add the model and the migration" or "add the resolver". Plan approval at the checkpoint is the permission to commit each step.
 
@@ -223,17 +223,22 @@ After the last step, run Phase 7's full test suite with the stamp rules once, th
    ```
    If it is staged, run `git restore --staged <document>` and tell the user.
 4. If `git ls-files <document>` shows that an earlier commit tracks the document, tell the user. Offer to add it to `.gitignore` and run `git rm --cached <document>`. Do not remove a tracked file without permission.
-5. When both reviews find no blocking issue, report:
+5. Run Phase 8a. If it fails, STOP, and do not report ready.
+6. When both reviews find no blocking issue, and Phase 8a passes or is skipped, report:
    ```
    ✅ Ready for review
 
    Files changed:
    - <file>: <what changed>
 
+   Docker test: passed | skipped — <reason>
+   Screenshots: <PNG paths, or none>
+
    Run /create-pr when ready to open a pull request.
    ```
-6. When the PR is open, run `/work-log update --branch <branch> --pr <url> --status in-review`.
-7. Start the merge check at once, with no question. Run this with Bash `run_in_background`:
+7. When the PR is open, run `/work-log update --branch <branch> --pr <url> --status in-review`. Show the PR and its commits as links, as `~/.claude/skills/github-links/skill.md` says.
+   - If Phase 8a saved screenshots, ask: "Attach the screenshots to <PR>?" After a yes, run `/make-curl-png --pr <url>` with the same requests.
+8. Start the merge check at once, with no question. Run this with Bash `run_in_background`:
 
    ```bash
    while s=$(~/.claude/skills/work-log/worklog.py merged --branch <branch>) && [ "$s" = no ]; do sleep 3600; done; echo "${s:-error}"
@@ -243,6 +248,19 @@ After the last step, run Phase 7's full test suite with the stamp rules once, th
    - `yes`: send a PushNotification `<TICKET> merged`, and start Phase 9.
    - `closed`: tell the user that the PR is closed without a merge. The entry is now `abandoned`.
    - `error`: show the error of the script. Do not start the loop again.
+
+### Phase 8a — Local Docker test ⟨ph:c4c549b2⟩
+
+Phase 8 step 5 runs this phase. Run it after the reviews, because a defect on the running stack must not reach `/create-pr`, and the unit tests mock the request binding, the middleware, and the flag client.
+
+1. Skip the phase, and give the reason in the ready report, if either of these is true:
+   - The change touches only docs, CI, or config.
+   - `~/.claude/skills/docker-test/rules/<repo>.local.md` does not exist. `<repo>` is the last part of `git remote get-url origin`, without `.git`.
+2. From the worktree, run `/docker-test <what is tested>`. Name each acceptance criterion and each new error case in `<what is tested>`.
+   - If the change adds a feature flag, test the flag on and off. Use the local flag setting that the rules file names. If it names none, ask the user.
+   - If another session holds the lock, ask whether to wait (`--wait`) or skip. In an automated run, skip the phase and report it.
+3. If a test fails, STOP. Show the failure, fix it, and run the full suite with the test stamp rules. Then run Phase 8 again from step 1, because the fix changes the reviewed content.
+4. Save the proof: run `/make-curl-png --no-attach` for one or two representative requests, for example one success and one new error case. Keep the PNG paths for the ready report.
 
 ### Phase 9 — After the merge ⟨ph:8c9baf91⟩
 
@@ -285,6 +303,7 @@ A run is automated when no user is present: headless (`claude -p`), background (
 ## Other rules
 
 - Follow the Rules of the tracker adapter on every tracker call.
+- When you push more commits to an open PR, for example after a follow-up change or a review fix, report each new commit as a link, as `~/.claude/skills/github-links/skill.md` says.
 
 ## Examples
 
