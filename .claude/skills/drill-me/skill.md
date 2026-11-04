@@ -1,8 +1,8 @@
 ---
 name: drill-me
-description: Researches how a problem is solved elsewhere, then questions the user round by round until every design decision is settled, writes an alignment document, then hands it to /implement-ticket or /create-notion-tech-spec. Use for "/drill-me <topic>", "drill me on this design", or "what am I not thinking about".
+description: Researches how a problem is solved in existing repos or on the web, then questions the user round by round until every design decision is settled, writes an alignment document, then hands it to /implement-ticket or /create-notion-tech-spec. Use for "/drill-me <topic>", "drill me on this design", or "what am I not thinking about".
 user-invocable: true
-allowed-tools: WebSearch, WebFetch, Read, Write, Grep, Glob, Skill
+allowed-tools: Bash, WebSearch, WebFetch, Read, Write, Grep, Glob, Skill
 ---
 
 # Drill Me
@@ -17,7 +17,8 @@ The value is the **grounding**: the questions come from real prior art, so they 
 - NEVER cite a source that you did not fetch and read. If a claim comes only from a search snippet, say so, or drop it.
 - Ask 3–6 questions in one message for each round. Never ask one at a time.
 - Ground each question in the research. A question that you could ask without reading anything is a wasted question.
-- If a real choice exists, name the options and recommend one with a reason, so the user can answer "your option B".
+- If a real choice exists, name the options and give each one the percentage that shows how much you would pick it. The percentages add up to 100. Recommend the highest one with a reason, so the user can answer "your option B".
+- NEVER start the research before the user picks the research topics, because the user knows which repos and pages matter.
 - If an answer contradicts an earlier decision or the prior art, say so at once, and ask which one wins. Silent inconsistency is the failure that this skill prevents.
 - NEVER propose an implementation: no file lists, no function signatures, no schemas beyond what a decision needs. This skill settles decisions, not code.
 - Record why each decision was made, not only what. In six months the reasoning is the part that nobody remembers.
@@ -31,7 +32,7 @@ The value is the **grounding**: the questions come from real prior art, so they 
 | Topic | `event sourcing for our ledger` | The thing to drill into |
 | Topic with constraints | `rate limiting, must work across 3 services` | The topic and the known constraints |
 | Ticket ID in the topic | `PROJ-1234 webhook retries` | The ID goes in the file name |
-| `--no-research` | — | Skip the web research, and drill from first principles |
+| `--no-research` | — | Skip the research, and drill from first principles |
 | `--rounds <n>` | `--rounds 2` | The maximum number of rounds. Default: until convergence. |
 | `--out <path>` | `--out ./design/ledger.md` | The document path |
 | *(empty)* | — | Ask what to drill into, and stop |
@@ -57,6 +58,47 @@ Record the goal of the drill from the words of the user. Phase 7 uses it:
 Show it in the mirror: `Goal: develop`, so the user can correct it.
 
 ### Phase 2 — Research prior art (unless `--no-research`) ⟨ph:79af451e⟩
+
+Choose the research mode from the topic:
+
+| Mode | The topic | Source |
+|---|---|---|
+| `repos` | names a ticket ID, or changes code that already exists | The repos of the organization that owns the current repo |
+| `web` | is new, and no repo of the organization solves it yet | Web pages |
+
+#### Step 1 — Propose the research topics
+
+List 5–10 research topics. Give each topic the place to look, the reason, and the percentage that shows how much you would pick it:
+
+```
+## Research topics — mode: repos
+
+| # | Topic | Where to look | Why | Pick |
+|---|---|---|---|---|
+| 1 | PostgreSQL service container in CI | `.github/workflows/*.yml` in the org | Shows the CI pattern that already works | 90% |
+| 2 | pytest database fixtures | `conftest.py` in the org | Shows how the tests get a clean database | 80% |
+| 3 | How other projects do it (web) | Web pages | Only if no repo solves it | 20% |
+```
+
+In `repos` mode, add the web as the last topic, because a repo search can find nothing.
+
+# --- CHECKPOINT ---
+STOP and WAIT for the user to pick the topics. Research only the topics that the user picks.
+
+#### Step 2a — Research the repos (`repos` mode)
+
+Get the organization from the current repo, then search its code for each topic:
+
+```bash
+gh repo view --json owner -q .owner.login
+gh search code '<term>' --owner <org> --limit 30 --json repository,path
+```
+
+Prefer a repo that is checked out next to the current repo, because you can read it with no network. Read the files that the search finds, for example the CI workflows, the `conftest.py` files, and the test settings. Never judge a repo from the search hit.
+
+Read 3–6 repos. From each, take the decisions that it had to make, the trade-offs, and the parts that differ from the other repos. Show the digest of Step 2b, with `<repo>/<path>` in place of the url.
+
+#### Step 2b — Research the web (`web` mode, or a picked web topic)
 
 Find with `WebSearch`, then read with `WebFetch`. Never judge a source from its snippet. Prefer, in this order:
 
