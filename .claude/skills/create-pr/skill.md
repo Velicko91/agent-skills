@@ -136,11 +136,12 @@ If the subagent returns a `CONFLICT_REMOTE` or `CONFLICT_BASE` warning from `pus
 
 Report in the terminal, not in the PR:
 
-1. The PR URL, and draft or regular
-2. The Copilot result: confirmed by `gh pr view --json reviewRequests`, or the reason it is not
-3. The classes and methods that still need tests (Step 3)
-4. Each warning: a diff over 500 lines, a sensitive file (`.env`, credentials, secrets), or a model change with no migration
-5. Whether the `pr-author` subagent or the session model opened the PR
+1. The PR as a link, and draft or regular
+2. Each commit of the PR as a link, oldest first, as `~/.claude/skills/github-links/skill.md` says
+3. The Copilot result: confirmed by `gh pr view --json reviewRequests`, or the reason it is not
+4. The classes and methods that still need tests (Step 3)
+5. Each warning: a diff over 500 lines, a sensitive file (`.env`, credentials, secrets), or a model change with no migration
+6. Whether the `pr-author` subagent or the session model opened the PR
 
 Then offer: "If you change something and want a fresh run, say **retry**."
 
