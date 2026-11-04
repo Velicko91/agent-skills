@@ -17,6 +17,8 @@
 # The matching *.example.json files stay committed.
 .claude/skills/**/data.json
 .claude/agents/**/data.json
+.claude/skills/**/*.migrated
+.claude/agents/**/*.migrated
 
 # Per-skill private notes, such as per-service testing rules. The matching *.example.md files stay committed.
 .claude/skills/**/*.local.md
