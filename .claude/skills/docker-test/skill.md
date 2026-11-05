@@ -206,6 +206,23 @@ If the logs have errors, show them first:
 - <error message>
 ```
 
+### Step 12 — Update the PR description
+
+Run this step when the tests check a code change, and `gh pr view --json number,body` finds an open PR for the current branch. Ask no question. Without a PR, print the table for later. Skip the step for a log-only run (`--no-start`).
+
+1. Choose the most important cases, at most 20 rows. Keep the happy path, each new error status, the auth and scope checks, each flag state, and the read before and after a write. Merge the passing M1, M2, and M6 rows into one line under the table. If more cases ran, write the number left out under the table.
+2. Write the section. Its header is the "PR section header" of the rules file, else `## Docker tested`. Start it with two or three sentences: where the tests ran (for example the local environment with dev port forwards, or the sandbox), each temporary change made for the run (a spec flag, a local flag), and what the run did not cover.
+3. Give the table these columns, one row for each case, with the real result:
+
+   ```
+   | # | Test | Request / check | Expect | Actual |
+   |---|------|-----------------|--------|--------|
+   | T1 | <case> | `<METHOD> <path>` | `204` | ✅ `204` |
+   ```
+
+4. Replace the existing section with that header, or a `## Manual verification` section, or add the section before the ticket link and the footer. Keep every other section as it is. Write the new body to a file, then run `gh pr edit <number> --body-file <file>`.
+5. Put no token, password, or pass count in the section.
+
 ## Examples
 
 - `/docker-test` ← full stack, mandatory tests, logs
