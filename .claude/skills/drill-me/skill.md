@@ -1,6 +1,6 @@
 ---
 name: drill-me
-description: Researches how a problem is solved in existing repos or on the web, then questions the user round by round until every design decision is settled, writes an alignment document, then hands it to /implement-ticket or /create-notion-tech-spec. Use for "/drill-me <topic>", "drill me on this design", or "what am I not thinking about".
+description: Researches how a problem is solved in existing repos or on the web, ranks the design questions, asks the most important ones round by round until every design decision is settled, writes an alignment document, then hands it to /implement-ticket or /create-notion-tech-spec. Use for "/drill-me <topic>", "drill me on this design", or "what am I not thinking about".
 user-invocable: true
 allowed-tools: Bash, WebSearch, WebFetch, Read, Write, Grep, Glob, Skill
 ---
@@ -15,12 +15,16 @@ The value is the **grounding**: the questions come from real prior art, so they 
 
 - NEVER write the document before the user confirms alignment at the checkpoint.
 - NEVER cite a source that you did not fetch and read. If a claim comes only from a search snippet, say so, or drop it.
-- Ask 3–6 questions in one message for each round. Never ask one at a time.
+- Ask `perRound` questions in one message for each round. Never ask one at a time.
 - Ground each question in the research. A question that you could ask without reading anything is a wasted question.
 - If a real choice exists, name the options and give each one the percentage that shows how much you would pick it. The percentages add up to 100. Recommend the highest one with a reason, so the user can answer "your option B".
+- ALWAYS list the options from the highest percentage to the lowest, so option A is always the recommendation.
+- If the top option of a question has more than `autoPickPercent`, pick it with no question, and mark it `AUTO`. ALWAYS list each `AUTO` pick with its percentage, so the user can reopen it.
+- ALWAYS show each option in the option format of Phase 4: how it works, how it looks in code, and the consequence. The user must see the exact result of a pick before the pick, because a consequence found during implementation causes a late disagreement.
+- If the work changes code that exists, ALWAYS make at least one option of each question follow a pattern that the code already uses, and cite it as `<repo>/<path>:<line>`. If no code has a pattern for the question, write `No existing pattern`, and give the files that you searched.
 - NEVER start the research before the user picks the research topics, because the user knows which repos and pages matter.
 - If an answer contradicts an earlier decision or the prior art, say so at once, and ask which one wins. Silent inconsistency is the failure that this skill prevents.
-- NEVER propose an implementation: no file lists, no function signatures, no schemas beyond what a decision needs. This skill settles decisions, not code.
+- NEVER write an implementation plan: no file lists, no step lists, no full functions. The code in an option is a sketch that shows only how the option differs. This skill settles decisions, not code.
 - Record why each decision was made, not only what. In six months the reasoning is the part that nobody remembers.
 - Stop when more questions would not change the design, because over-drilling is a failure too.
 - Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
@@ -40,6 +44,19 @@ The value is the **grounding**: the questions come from real prior art, so they 
 Default document path: `./design-alignment-<ID>-<slug>.md` if the topic names a ticket ID, else `./design-alignment-<slug>.md`. The ID in the name lets `/implement-ticket` and `/create-notion-tech-spec` find the document.
 
 Use the defaults with no confirmation.
+
+## Local configuration
+
+Read `data.json` in this skill directory. If it is missing, copy `data.example.json` to `data.json`, and use it.
+
+| Key | Default | Use |
+|---|---|---|
+| `poolSize` | `45` | The number of design questions that Phase 3 finds |
+| `askTop` | `20` | The number of the most important questions that Phase 4 asks the user |
+| `perRound` | `4` | The number of questions in one message |
+| `autoPickPercent` | `95` | If the top option of a question has more than this percentage, pick it with no question |
+
+If a key is missing, use its default.
 
 ## Workflow
 
@@ -98,6 +115,8 @@ Prefer a repo that is checked out next to the current repo, because you can read
 
 Read 3–6 repos. From each, take the decisions that it had to make, the trade-offs, and the parts that differ from the other repos. Show the digest of Step 2b, with `<repo>/<path>` in place of the url.
 
+Read the code that the work changes, in the current repo, too. Record each pattern that it already uses for the topic, with `<repo>/<path>:<line>`, for example how it retries, validates, maps errors, or tests. Phase 4 builds the existing-code option of each question from this list.
+
 #### Step 2b — Research the web (`web` mode, or a picked web topic)
 
 Find with `WebSearch`, then read with `WebFetch`. Never judge a source from its snippet. Prefer, in this order:
@@ -127,56 +146,163 @@ The disagreements matter more than the consensus. A consensus is a default that 
 
 From the research and the topic, list the design dimensions, for example: scope and non-goals; data model and ownership; consistency, ordering, and failure semantics; interfaces and contracts; scale and performance targets; migration and rollout; operational burden (who runs it, who gets paged); security and access boundaries.
 
-Give each one a status: `OPEN`, `DECIDED`, or `DEFERRED`. The log tracks convergence for the rest of the run.
+Then write `poolSize` design questions that cover the dimensions. For each question, record:
+
+- The dimension.
+- The options, each with its percentage, highest first.
+- The questions whose answer can change its percentages (`Depends on`).
+
+If the topic has fewer questions that change the design, write fewer, and say how many. A filler question wastes a round.
+
+Give each question a status: `OPEN`, `DECIDED`, `AUTO`, or `DEFERRED`. The log tracks convergence for the rest of the run.
+
+### Phase 3b — Rank the questions ⟨ph:fb06ce66⟩
+
+Sort the questions from the most important to the least important. Use these keys, in this order:
+
+1. The cost to reverse: a decision that changes a contract, a schema, or stored data costs the most to change later.
+2. The reach: the number of other questions that depend on it.
+3. The doubt: a lower top percentage means that the answer of the user adds more.
+
+Then give each question its plan:
+
+| Plan | The question |
+|---|---|
+| `AUTO` | Its top option has more than `autoPickPercent`. Pick it now. |
+| `ASK` | One of the first `askTop` questions in rank order that are not `AUTO` |
+| `LATER` | All other questions. Phase 4 decides them after the `ASK` answers. |
+
+Show the ranked list, one line for each question:
+
+```
+## Questions — 45 found · 20 to ask · 7 auto · 18 later
+
+| Rank | Q | Dimension | Question | Top option | % | Depends on | Plan |
+|---|---|---|---|---|---|---|---|
+| 1 | Q7 | data model | Who owns the retry state? | Outbox table | 60% | — | ASK |
+| 2 | Q3 | contracts | Does the webhook payload carry the attempt number? | Yes | 55% | Q7 | ASK |
+| 22 | Q12 | operations | Who gets paged when retries stop? | The owning team | 80% | Q7 | LATER |
+| 31 | Q19 | security | Sign the webhook payload? | HMAC, as the other webhooks do | 97% | — | AUTO |
+```
+
+# --- CHECKPOINT ---
+Ask: "Change the order, move a question to `ASK`, reopen an `AUTO` pick, or say **go**." STOP and WAIT.
 
 ### Phase 4 — Drill ⟨ph:e4ae3aa3⟩
 
-Repeat until every dimension is `DECIDED` or `DEFERRED`, or `--rounds` is reached. In each round:
+Ask the `ASK` questions in rank order, until all of them are answered or `--rounds` is reached. In each round:
 
-1. Ask 3–6 questions in one message. Ground each one in the research:
+1. Ask the next `perRound` `ASK` questions in one message. Ground each one in the research:
    > "Kafka pins ordering per partition and accepts hot-partition risk; NATS gives up global ordering for even distribution. Which failure hurts you less?"
 
    not:
    > "How should ordering work?"
 2. Ask only about things that change the design. Do not ask what you can infer, or about names and cosmetics. One question, one decision.
-3. Show the second-order effect of each choice, not only the choice.
+3. Write each option in the option format below.
 4. If the user says "you decide", decide, give the reason, and mark it `DECIDED` with a note that it was your call.
-5. After the answers, update the log, and show what closed:
+5. After the answers, calculate the percentages of each open question again, from the answers so far. Then:
+   - Pick each question whose top option now has more than `autoPickPercent`, and mark it `AUTO`.
+   - Drop a question that an answer made obsolete, and say why.
+   - If an answer raises a new question that is more important than the next `ASK` question, add it to `ASK`, and say so.
+6. Update the log, and show what closed:
 
 ```
 ### Round <n> — decisions
 
-✅ <Dimension>: <what was decided> — <one-line consequence>
-⏸️  <Dimension>: deferred — <what would unblock it>
+✅ Q7 <Dimension>: <what was decided> — <one-line consequence>
+🤖 Q19 <Dimension>: auto-picked <option> (97%) — <the answer that made it clear>
+⏸️  Q12 <Dimension>: deferred — <what would unblock it>
 
-Still open: <list>
+Still to ask: <n> · Later: <n>
 ```
+
+When every `ASK` question is answered, calculate the percentages of the `LATER` questions again. Pick each one that has more than `autoPickPercent` as `AUTO`. Decide each other one with its top option, and mark it `DECIDED` with a note that it was your call.
+
+#### Option format
+
+Write each question and its options like this example:
+
+````
+### Q2 — Where does a failed webhook wait for its retry? (failure semantics)
+
+The ledger writes the payment and then calls the webhook. `acme-billing` keeps an outbox table, and `acme-notify` uses a retry topic.
+
+**A — Outbox table, as `acme-billing/app/outbox.py:42` does** · existing pattern · 70%
+- How it works: the payment row and the retry row commit in one transaction. A worker reads the retry rows every 5 s. If the service crashes after the commit, the worker still sends the webhook after the restart.
+- In code (sketch):
+  ```python
+  with uow:
+      uow.payments.add(payment)
+      uow.outbox.add(WebhookDue(payment_id=payment.id, attempt=1))
+  ```
+- Consequence: a new table and a migration. A retry can wait up to 5 s. The tests use the database fixture that exists, and need no Kafka.
+
+**B — Kafka retry topic, as `acme-notify/consumer.py:88` does** · 30%
+- How it works: the handler publishes `WebhookDue` after the commit. If the service crashes between the commit and the publish, the webhook is lost.
+- In code (sketch):
+  ```python
+  uow.commit()
+  producer.send("webhook-retry", WebhookDue(payment_id=payment.id, attempt=1))
+  ```
+- Consequence: no migration, but a new topic and its ACLs. The tests need a Kafka container.
+
+Recommend: A, because B loses a webhook on a crash, and A follows the pattern of this codebase.
+````
+
+Each option has these parts:
+
+| Part | Content |
+|---|---|
+| Title | The option, and the code that it follows: `as <repo>/<path>:<line> does`. Add `existing pattern` if that code is in the repo that the work changes. |
+| How it works | One concrete scenario with real values, and the failure case, if there is one. |
+| In code | A sketch of 3–15 lines, in the language of the repo, with the names that the code uses. Show only the lines that differ between the options. |
+| Consequence | What the pick changes later: a migration, a contract, a test setup, the behavior that a client sees, or the code that must change with it. |
+
+If the topic has no code (`web` mode, or `--no-research`), write the sketch as the call or the config that a user of the design writes.
 
 ### Phase 5 — Convergence check ⟨ph:7cce93a2⟩
 
 Before you write, check that the design holds together:
 - **Contradictions:** do two decisions conflict?
-- **Gaps:** is a dimension still `OPEN` that blocks the start of the work?
+- **Gaps:** is a question still `OPEN` that blocks the start of the work?
 - **Unstated assumptions:** did you assume something that the user never confirmed? Ask it now.
 - **The disagreement axes of Phase 2:** is each one resolved?
+- **Combined code:** do the sketches of the picked options work together? Write them as one sketch, and look for a conflict, for example two picks that each own the same transaction.
 
 If a check fails, run one more round.
 
 ### CHECKPOINT ⟨ph:8ab53cde⟩
 
-Show the alignment summary, and ask: **"Aligned? Say 'write it' to save the document, or keep drilling."** STOP and WAIT.
+Show the alignment summary, with the combined sketch of the picked options. List each `AUTO` pick and each of your calls, with its percentage, so the user can reopen it. Then ask: **"Aligned? Say 'write it' to save the document, or keep drilling."** STOP and WAIT.
 
 ### Phase 6 — Write the document ⟨ph:28676e4d⟩
 
-```markdown
+````markdown
 # <Topic> — Design Alignment
 
 ## Problem
 <the framing from Phase 1, as finally agreed>
 
 ## Decisions
-| # | Dimension | Decision | Why | Consequence |
-|---|-----------|----------|-----|-------------|
+| # | Dimension | Decision | How | Follows | Why | Consequence |
+|---|-----------|----------|-----|---------|-----|-------------|
+<!-- How: asked, auto (<percent>), or my call (<percent>). Follows: <repo>/<path>:<line>, or "new" -->
+
+## Decision details
+### <#> — <Dimension>
+- **Picked:** <option>. How it works: <the scenario of the option>
+- **Sketch:**
+  ```<language>
+  <the sketch of the picked option>
+  ```
+- **Rejected:** <option> — <why>
+
+The implementation follows these sketches. A change to a sketch is a new decision, so ask the user first.
+
+## Combined sketch
+```<language>
+<the sketches of the picked options together>
+```
 
 ## Explicitly out of scope
 - <non-goal> — <why it was ruled out>
@@ -193,14 +319,14 @@ Show the alignment summary, and ask: **"Aligned? Say 'write it' to save the docu
 
 ## Open risks
 - <what could still go wrong given these decisions>
-```
+````
 
 ### Phase 7 — Output ⟨ph:f34fffdf⟩
 
 ```
 ✅ Alignment document → <path>
 
-Decisions: <N>   Deferred: <N>   Out of scope: <N>
+Decisions: <N> (asked <N>, auto <N>, my call <N>)   Deferred: <N>   Out of scope: <N>
 Sources consulted: <N>
 ```
 
@@ -221,4 +347,4 @@ Then hand off from the goal of Phase 1. Ask no question for `develop` or `tech-s
 
 ## Retry
 
-If the user says "retry", discard the decision log and every answer. Research again with no cached source, and build the log again.
+If the user says "retry", discard the decision log, the ranked questions, and every answer. Research again with no cached source, and build the log again.
