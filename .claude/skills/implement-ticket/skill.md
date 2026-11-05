@@ -21,6 +21,7 @@ Build a reviewed plan from a ticket or a description. Get approval, then impleme
 - NEVER set `prod-tested` or move the ticket to done before the user confirms that each prod check passes. A merge or a dev test is not the end of the ticket.
 - NEVER send a call to prod. The user runs the prod checks, because a call on prod can change real customer data.
 - Use `date -u +%Y-%m-%d` for every date. NEVER guess today's date.
+- ALWAYS update the PR description after each push to an open PR, as "PR description" says. A stale description describes code that is not on the branch.
 - Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
@@ -34,7 +35,9 @@ Build a reviewed plan from a ticket or a description. Get approval, then impleme
 
 Text after the ID is extra direction for the plan, for example "skip the gRPC layer".
 
-Add `--incremental` to build the change in steps: each step is implemented, tested, reviewed, and committed before the next one starts. See "Phases 6–7 with `--incremental`".
+By default, the skill builds the change in steps: it implements, tests, reviews, and commits each step before the next one starts. See Phase 6a.
+
+Add `--no-incremental` to implement the whole plan at once, and to leave the changes staged for `/create-pr`, with no commit.
 
 ## Tracker
 
@@ -119,7 +122,7 @@ If Phase 2 found a document, start from it. Keep its headings and wording where 
 ### Edge cases and risks
 - <item>
 
-### Steps                              (only with --incremental)
+### Steps                              (omit with --no-incremental)
 1. <type>: <what the step does> — `file_a.py`, `test_file_a.py`
 2. <type>: <what the step does> — `file_b.py`, `test_file_b.py`
 
@@ -169,31 +172,28 @@ When the branch exists, record it at once, because an entry written later is los
 
 Get `<id>` with `echo $CLAUDE_CODE_SESSION_ID`. A resume by ID works also after a `/rename`.
 
-Implement the plan:
+Apply these rules to each code change:
 - Change one file at a time. Follow the conventions of the code: naming, imports, docstrings, error handling.
-- Do not change test files in this phase.
 - Add a code comment only when the code cannot explain itself. Keep a comment to 5 lines or fewer. Docstrings have no limit.
+
+Then run Phase 6a.
+
+With `--no-incremental`, do this instead of Phase 6a, then go to Phase 7:
+- Implement the whole plan. Do not change test files in this phase.
 - Stage each logical group with `git add <files>`.
+- Report:
 
-Report:
+  ```
+  ✅ Implementation complete — <N> files changed
+  Staged: <files>
+  ```
 
-```
-✅ Implementation complete — <N> files changed
-Staged: <files>
-```
+### Phase 6a — Steps ⟨ph:d94ee4b6⟩
 
-### Phase 7 — Tests ⟨ph:17aabef4⟩
+Run this loop once for each step of the plan, in order:
 
-Add or update tests. Follow the patterns of the existing tests for that domain. Stage the tests after the source changes, so the diff is easy to review.
-
-Then run the full test suite, with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md`: `check tests` before the run, and `record tests passed|failed` after it. If a test fails, fix it and run the suite again.
-
-### Phases 6–7 with `--incremental` ⟨ph:d94ee4b6⟩
-
-Create the branch and the work-log entry as in Phase 6. Then run this loop once for each step of the plan, in order:
-
-1. Implement the source changes of the step, one file at a time, with the rules of Phase 6.
-2. Add or update the tests of the step. This replaces the Phase 6 rule "Do not change test files".
+1. Implement the source changes of the step, with the rules of Phase 6.
+2. Add or update the tests of the step.
 3. Run the tests of the modules that the step changes. Record no stamp, because this is not the full suite. If a test fails, fix it before you continue.
 4. Stage the files of the step by name. Run `/review-code`: its default scope is the staged changes, so it reviews only this step. Fix each real problem, stage it again, and run it again until it finds no Critical or Major issue.
 5. Commit the step:
@@ -207,9 +207,17 @@ A step is one logical change that builds and passes its own tests, usually 1–4
 
 If a step review finds a design problem, or a step needs a change that the plan does not have, STOP. Show the problem and ask how to continue, because the later steps build on this one.
 
-After the last step, run Phase 7's full test suite with the stamp rules once, then Phase 8. The final `/review-code --branch` reads the whole branch again, but each step is already reviewed, so it looks mainly at how the steps fit together.
+After the last step, run Phase 7, then Phase 8. The final `/review-code --branch` reads the whole branch again, but each step is already reviewed, so it looks mainly at how the steps fit together.
+
+### Phase 7 — Tests ⟨ph:17aabef4⟩
+
+With `--no-incremental`, first add or update the tests. Follow the patterns of the existing tests for that domain. Stage the tests after the source changes, so the diff is easy to review.
+
+Run the full test suite, with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md`: `check tests` before the run, and `record tests passed|failed` after it. If a test fails, fix it and run the suite again. Without `--no-incremental`, commit the fix as its own commit, as in Phase 6a step 5.
 
 ### Phase 8 — Review and finish ⟨ph:2976f0d6⟩
+
+Without `--no-incremental`, commit the fixes of each review round in Phase 8 and Phase 8a as their own commit, as in Phase 6a step 5, before the next round. Then each round is a separate commit, and no fix stays staged.
 
 1. Run `/review-code --branch`: it reviews the whole change compared with the default branch (usually `main`), committed or not. Fix each real problem, stage it again, and run `/review-code --branch` again. Write down each false positive or intentional trade-off. When it finds no Critical or Major issue, run `~/.claude/skills/verify-stamp/stamp.sh record review clean`.
    - If the review changed files, run the full suite again with the test stamp rules. Then `/create-pr` can reuse both stamps.
@@ -304,6 +312,20 @@ A run is automated when no user is present: headless (`claude -p`), background (
 
 - Follow the Rules of the tracker adapter on every tracker call.
 - When you push more commits to an open PR, for example after a follow-up change or a review fix, report each new commit as a link, as `~/.claude/skills/github-links/skill.md` says.
+
+## PR description
+
+Keep the working copy of the PR description in `/tmp/pr-body/<owner>-<repo>/<branch>.md`. Replace each `/` in the branch name with `-`. Get `<owner>-<repo>` with `gh repo view --json nameWithOwner -q .nameWithOwner | tr / -`.
+
+After each push to an open PR:
+
+1. Write the current body from GitHub to the working copy, with `mkdir -p` first: `gh pr view <pr> --json body -q .body > <file>`. ALWAYS start from GitHub, because a person can edit the description there.
+2. Read the commits of the push and their diff. Edit the working copy with Edit:
+   - Add each new change to the section where it belongs.
+   - Remove or correct each line that the push makes wrong, for example a removed function, a renamed term, or a changed value or example.
+   - Keep each line that is still true, and the attribution and ticket lines at the end.
+3. If the working copy changed, run `gh pr edit <pr> --body-file <file>`.
+4. Report one line: `PR description: <what changed>`, or `PR description: still current`.
 
 ## Examples
 
