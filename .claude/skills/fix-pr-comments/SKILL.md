@@ -17,6 +17,7 @@ Fetch the open review comments of a PR, check each one, fix the real issues, and
 - Fix only what the comment describes, with minimal edits.
 - NEVER script code changes (`sed -i`, `awk`, `perl -pi`, `python`, heredocs). Use Edit only, one clear change at a time. Scripts are fine for reading code.
 - NEVER force-push. Always add a new commit.
+- Put each fixed comment in its own commit, because a reviewer can then check, revert, or cite one fix alone.
 - Start every reply with `Claude AI:`.
 - NEVER give a decision to the `pr-comment-courier` subagent. It runs a cheaper model and has no code context. It only fetches and posts. You categorise each comment, write each reply, and make each edit.
 - NEVER trust the courier's counts without the Step 2 reconciliation, because a silent drop looks like a clean run.
@@ -137,23 +138,34 @@ WAIT for the answer.
 
 ### Step 5 — Fix ⟨ph:0dfbc5bb⟩
 
-Process only the approved items.
+Process only the approved items, one at a time. Finish Step 5b for one item before you edit the next, because each commit must hold only the changes of its own comment.
 
 - **Typo:** apply the minimal fix with Edit. Run `make lint 2>&1 | tail -20`. If lint fails, revert the edit and tell the user. Do not try a second edit without telling the user.
 - **Confirmed fix:** read the file again, apply the fix with Edit, and run the tests of the affected module if practical: `make test`, or the runner of the project, for example `poetry run pytest tests/path/test_affected.py -x -q 2>&1 | tail -30`. Keep test and lint output short with `-q` and `tail`, because a long output is sent again with every later call. If the tests fail, revert the edit and tell the user before you continue.
 - **No fix:** change no code. Reply only.
 
-### Step 5b — Review the fixes ⟨ph:b494d394⟩
+### Step 5b — Review and commit each fix ⟨ph:b494d394⟩
 
-If Step 5 changed files, review them before you reply and commit, because a reply must describe the final code:
+If the fix of the current item changed files, review it before you commit and reply, because a reply must describe the final code:
 
 1. Stage the changed files by name: `git add <files>`.
-2. Run `/review-code`. Its default scope is the staged changes, so it reviews only the fixes of this run, not the whole branch.
+2. Run `/review-code`. Its default scope is the staged changes, so it reviews only the fix of this item, not the whole branch.
 3. It leaves its own small fixes unstaged. Check them with `git diff`, and stage them by name.
-4. If it reports a Critical or Major issue in a fix:
+4. If it reports a Critical or Major issue in the fix:
    - **Interactive:** show the issue, and ask: fix it, keep the fix as it is, or undo the fix. WAIT.
-   - **Unattended:** undo that fix with Edit, stage the file again, and reply to its comment `Claude AI: No change — the fix did not pass review.`
-5. If you changed a fix, run `/review-code` again. Continue when it reports no Critical or Major issue.
+   - **Unattended:** undo the fix with Edit, stage the file again, and reply to its comment `Claude AI: No change — the fix did not pass review.` Commit nothing for this item.
+5. If you changed the fix, run `/review-code` again. Continue when it reports no Critical or Major issue.
+6. Commit the staged fix:
+
+   ```bash
+   git diff --cached --name-only
+   git commit -m "<type>: <what changed>" -m "Refs: <comment URL>"
+   ```
+
+   Use the Conventional Commits type of the change, for example `fix:`, `docs:`, or `test:`. Record the short SHA with `git rev-parse --short HEAD` for the reply.
+7. Go back to Step 5 for the next item.
+
+If two comments ask for the same change, make one commit, and cite it in both replies.
 
 ### Step 6 — Reply to every processed comment ⟨ph:496aeea7⟩
 
@@ -171,7 +183,7 @@ Agent(
            - comment_id: 987
              kind: inline
              body: |
-               Claude AI: Fixed — <what changed>.
+               Claude AI: Fixed in <short SHA> — <what changed>.
            - comment_id: 77
              kind: issue
              body: |
@@ -184,24 +196,21 @@ It returns `posted` and `failed` lists. Report each `failed` entry in Step 8, an
 Reply examples:
 
 ```
-Claude AI: Fixed — removed the redundant null check on line 42; the upstream validator already guarantees a non-null value here.
+Claude AI: Fixed in a1b2c3d — removed the redundant null check on line 42; the upstream validator already guarantees a non-null value here.
 Claude AI: No change — this line was removed in the latest commit; the concern no longer applies.
 Claude AI: No change — the empty list default is intentional; the docstring documents that callers provide their own list.
 Claude AI: Acknowledged — this is a valid design concern but out of scope for this PR. Filed as a follow-up.
 ```
 
-### Step 7 — Commit and push ⟨ph:8807174c⟩
+### Step 7 — Push ⟨ph:8807174c⟩
 
-If files changed:
+If Step 5b made commits, push them all at once:
 
 ```bash
-git diff --name-only
-git add <changed files>
-git commit -m "fix: address PR review comments"
 ~/.claude/skills/safe-push/push.sh <base of the PR>
 ```
 
-If more than one file changed, list the fixes in the commit message. `push.sh` pulls new commits of the branch, checks for a conflict with the base, and pushes only if both are clean:
+`push.sh` pulls new commits of the branch, checks for a conflict with the base, and pushes only if both are clean:
 - `CONFLICT_REMOTE` or `CONFLICT_BASE`: resolve it with "Resolve a conflict" in `~/.claude/skills/safe-push/skill.md`: automatically when you can, and ask only when it says that you cannot resolve it. Report each resolved file in Step 8.
 - `PULLED …` before `PUSHED`: say that the branch now holds commits from others.
 
@@ -210,14 +219,14 @@ If more than one file changed, list the fixes in the commit message. `push.sh` p
 ```
 ## Done — PR #{number}
 
-| # | Comment | Action | Status |
-|---|---------|--------|--------|
-| 1 | Missing null check | Fixed in foo.py:42 | ✅ |
-| 2 | Typo: recieve | Fixed in bar.py:7 | ✅ |
-| 3 | Design question | No change — replied with rationale | 💬 |
+| # | Comment | Action | Commit | Status |
+|---|---------|--------|--------|--------|
+| 1 | Missing null check | Fixed in foo.py:42 | a1b2c3d | ✅ |
+| 2 | Typo: recieve | Fixed in bar.py:7 | e4f5a6b | ✅ |
+| 3 | Design question | No change — replied with rationale | — | 💬 |
 
 **Files changed:** foo.py, bar.py
-**Commits pushed:** 1
+**Commits pushed:** 2
 ```
 
 Then offer: "If new comments arrive or you change more, say **retry** for a fresh pass."

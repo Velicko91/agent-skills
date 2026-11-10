@@ -14,8 +14,8 @@ No user can answer, for example when `/sweep-pr-comments` runs this skill from c
 | Invalid / not applicable | Reply with the reason |
 
 - After each fix, run lint and the tests of the affected module. If they fail, revert that edit and reply `Claude AI: No change — the fix failed lint or tests.`
-- Review the fixes with `/review-code` as in Step 5b, before the replies. Undo a fix that has a Critical or Major issue, and reply `Claude AI: No change — the fix did not pass review.`
-- Commit and push as in Step 7, with `push.sh`. If it reports a conflict, resolve it as in Step 7. If it cannot be resolved safely, abort the merge, push nothing, and report the files for a person to decide. NEVER force-push.
+- Review and commit each fix with `/review-code` as in Step 5b, before the replies. Undo a fix that has a Critical or Major issue, and reply `Claude AI: No change — the fix did not pass review.`
+- Push as in Step 7, with `push.sh`. If it reports a conflict, resolve it as in Step 7. If it cannot be resolved safely, abort the merge, push nothing, and report the files for a person to decide. NEVER force-push.
 - Do not offer a retry in the report.
 - With `--escalate` or `--only`, also read `tiers.md`. In tier 1, escalate instead of the "Design / architecture" and "Ambiguous" replies. In tier 2, `tiers.md` replaces those two rows.
 
