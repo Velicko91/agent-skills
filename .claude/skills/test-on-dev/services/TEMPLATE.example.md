@@ -46,6 +46,16 @@ If a token has no command, `/test-on-dev` asks for it.
 ## Logs
 `/get-gcloud-logs` alias: `ledger`
 
+## Prod release
+`/implement-ticket` Phase 10 runs this read-only check. It prints `released` when prod runs a release that contains the merge commit `$SHA`, and `not yet` otherwise.
+
+```bash
+<one read-only command, for example: compare the prod image tag in ArgoCD with git tag --contains $SHA>
+```
+
+## Prod logs
+`/get-gcloud-logs` alias for prod: `ledger-prod`. The release watch reads only, and never calls a prod endpoint.
+
 ## Mandatory tests
 Run on every test run.
 

@@ -19,7 +19,8 @@ Build a reviewed plan from a ticket or a description. Get approval, then impleme
 - NEVER delete a work-log entry unless the user asks in this conversation. Silence, or approval of something else, is not permission.
 - NEVER run `/create-pr` automatically. The user does that.
 - NEVER set `prod-tested` or move the ticket to done before the user confirms that each prod check passes. A merge or a dev test is not the end of the ticket.
-- NEVER send a call to prod. The user runs the prod checks, because a call on prod can change real customer data.
+- NEVER send a call to a prod service, because a call on prod can change real customer data. Reading the prod release state and the prod logs is allowed, because it changes nothing.
+- NEVER change a feature flag. Report the flag and the value it needs, because the user owns the rollout.
 - Use `date -u +%Y-%m-%d` for every date. NEVER guess today's date.
 - ALWAYS update the PR description after each push to an open PR, as "PR description" says. A stale description describes code that is not on the branch.
 - Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
@@ -289,15 +290,17 @@ Start this phase when the merge check prints `yes`, or when the user says that t
 Start this phase after Phase 9, or when the user resumes an entry that is `dev-tested`.
 
 1. Read `prod-checks.md` in this skill directory, and write the prod checklist from it.
-2. Show the checklist, and ask:
+2. Find the release check and the prod log alias in "Release watch" of `prod-checks.md`. If one is missing, ask the user for it. STOP and WAIT.
+3. Start the release watch with CronCreate, as "Release watch" says. Show the checklist, the job id, and its next run time. Say that the job lives only in this session and stops after 7 days.
+4. When the watch reports, show its result, and ask:
 
-   > Run these checks when the change is on prod, then tell me the result of each one.
+   > The change is on prod and the logs are clean. Is each flag set as listed? (yes / no)
 
    STOP and WAIT.
-3. If the user reports that each check passes:
+5. If the user reports that each check passes:
    1. Run `/work-log update --branch <branch> --status prod-tested`.
    2. Ask: "Move <TICKET> to done?" After a yes, use the Done row in "States" of the tracker adapter.
-4. If a check fails, keep the status `dev-tested`. Help find the cause with `/get-gcloud-logs`, or `/investigate-incident` for an incident. Give the rollback step of the checklist.
+6. If a check fails, keep the status `dev-tested`. Help find the cause with `/get-gcloud-logs`, or `/investigate-incident` for an incident. Give the rollback step of the checklist.
 
 ## Automated runs — scope guard
 
