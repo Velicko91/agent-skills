@@ -4,7 +4,7 @@ Run this gate before any other work. It stops a full review of a PR that the rep
 
 ## `repoPolicy` keys
 
-`repoPolicy` in `~/.claude/config.local.json` maps `owner/repo` to an acceptance rule:
+`repoPolicy` in `config.local.json` in this skill directory maps `owner/repo` to an acceptance rule:
 
 ```json
 "repoPolicy": {

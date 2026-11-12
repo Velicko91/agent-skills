@@ -32,11 +32,6 @@
     "services": [],
     "sharedLibraries": []
   },
-  "internal": {
-    "_comment": "Used to identify first-party dependencies, which are exempt from cooldown and pinning rules. Match by URL, never by package name.",
-    "gitOrgs": [],
-    "packageHosts": []
-  },
   "gcp": {
     "_comment": "Maps a service alias to its Kubernetes namespace and containers, and each environment to its GCP project. get-gcloud-logs reads this.",
     "environments": {

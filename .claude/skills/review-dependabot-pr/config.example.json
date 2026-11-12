@@ -1,22 +1,5 @@
 {
-  "_comment": "Copy to ~/.claude/config.local.json and fill in real values. Never commit real hosts here. The skill runs without this file, but it skips the sibling-repository check and falls back to the org managed policy for internal identifiers.",
-
-  "repos": {
-    "_comment_root": "Absolute path to the directory that holds your checkouts.",
-    "root": "~/work/<org>",
-
-    "_comment_services": "Deployable services. Used to widen a usage grep.",
-    "services": [
-      "example-api-service",
-      "example-billing-service"
-    ],
-
-    "_comment_shared": "Libraries other repos depend on. A bump here is checked against siblings.",
-    "sharedLibraries": [
-      "example-py-shared",
-      "example-go-shared"
-    ]
-  },
+  "_comment": "Copy to config.local.json in this skill directory and fill in real values. The copy is gitignored. Never commit real hosts or repo names here. The skill runs without this file, but it skips the repo policy gate and falls back to the org managed policy for internal identifiers. The repos.* keys (root, services, sharedLibraries) stay in ~/.claude/config.local.json, because other skills read them.",
 
   "internal": {
     "_comment_orgs": "Git orgs that host first-party code. Exempt from cooldown and pinning. Matched by URL, never by package name.",
@@ -28,5 +11,18 @@
     "packageHosts": [
       "<region>-python.pkg.dev/<project-id>"
     ]
+  },
+
+  "repoPolicy": {
+    "_comment": "The repos you own, keyed by owner/repo. Dependabot triage looks only at these repos. accept is `all` or `security`. minSeverity is low, medium, high, or critical. owns lists the paths you are responsible for.",
+    "<owner>/<repo>": {
+      "status": "active",
+      "accept": ["security"],
+      "minSeverity": "low",
+      "owns": ["path/you/own"],
+      "ecosystem": "uv",
+      "onOutOfPolicy": "comment-only",
+      "note": "Why the repo takes these updates."
+    }
   }
 }

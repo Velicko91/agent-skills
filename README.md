@@ -33,7 +33,8 @@ The skills never hardcode organization names, hosts, or IDs. They read them from
 
 | File | Holds | Template |
 |---|---|---|
-| `.claude/config.local.json` | Tracker, repositories, GitHub orgs, GCP projects | `.claude/config.example.json` |
+| `.claude/config.local.json` | Tracker, repositories, GCP projects | `.claude/config.example.json` |
+| `.claude/skills/review-dependabot-pr/config.local.json` | Repo policy, internal GitHub orgs and package hosts | `.claude/skills/review-dependabot-pr/config.example.json` |
 | `.claude/settings.json` | Claude Code permissions and hooks | `.claude/settings.example.json` |
 | `skills/<skill>/data.json` | Per-skill state and service lists | `data.example.json` in the skill |
 | `skills/<skill>/**/*.local.md` | Per-service rules and test data | `TEMPLATE.example.md` in the skill |

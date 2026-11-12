@@ -42,9 +42,11 @@ A PR reference is required. If it is absent, say so and stop.
 ### Phase 0 — Load context
 
 1. Read `lessons.md` in this skill directory, and apply what applies. If you need the evidence for a lesson, search `learn-archive.md` by its date.
-2. Read `~/.claude/config.local.json`. It gives `repos.root`, `repos.services`, `repos.sharedLibraries`, `internal.gitOrgs`, `internal.packageHosts`, and `repoPolicy`. `config.example.json` shows the shape. Read it on every run, because the policy can change.
+2. Read two config files on every run, because the policy can change:
+   - `config.local.json` in this skill directory. It gives `internal.gitOrgs`, `internal.packageHosts`, and `repoPolicy`. `config.example.json` shows the shape. The file is gitignored.
+   - `~/.claude/config.local.json`. It gives `repos.root`, `repos.services`, and `repos.sharedLibraries`. Other skills share these keys.
 
-If the config file does not exist, continue:
+If a config file does not exist, continue:
 - Use the organization managed policy for internal git orgs and package hosts. That policy is authoritative.
 - Skip the sibling-repository checks, because `repos.root` is unknown.
 - Name the missing file once, in the final output.

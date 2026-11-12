@@ -6,6 +6,9 @@
 # Local organization context (hosts, project ids, team ids, service map)
 .claude/config.local.json
 
+# Per-skill local organization context (repo policy, internal hosts). The matching config.example.json stays committed.
+.claude/skills/**/config.local.json
+
 # Personal Claude settings: hook paths, private marketplaces, permissions
 .claude/settings.json
 .claude/settings.local.json
