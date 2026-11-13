@@ -19,6 +19,7 @@ Requires an active Notion MCP connection. If it is not active, tell the user to 
 - Give each workflow, use case, and alternative a concrete, numbered walk-through.
 - Record the alternatives from the conversation, with the reason that each one lost.
 - Ask before you assume. Missing context makes a bad spec.
+- Never cite the internal reasoning as a source: no conversation, drill round, question number, alignment document, or "we decided". The readers did not see it. State the reason itself. Cite only sources a reader can open: code (`<repo>/<path>`), internal docs, tickets, and external pages.
 
 ## Phase 1 — Intake and questions
 
@@ -29,6 +30,9 @@ From everything the user gave, record:
 - The rough scope: what is in and what is out
 - The terms a reader must know to follow the spec
 - The use cases: each actor and the outcome it wants
+- The industry peers: how each comparable product solves the problem, with the docs URL (from an alignment document, or from research in the conversation)
+- The UI parity, for a public API endpoint that mirrors the web app (and any repo in the `uiParity` config of drill-me): each GraphQL operation that the web app sends for the same action, each of its rules (permissions, 2FA or step-up, refusals, side effects) with `<repo>/<path>`, and each divergence with its reason. Take it from the alignment document, or trace the resolver on the default branch of the remote. The endpoint template shows it in 4.1. Ask the user about each divergence that has no reason.
+- The connected tech specs: search Notion for specs about the same resource, the same services, and each shared mechanism the design uses, and record each with its URL and how it connects. The endpoint template lists them in References.
 
 ### Step 2 — Find the rejected alternatives
 
@@ -37,7 +41,7 @@ Search the conversation and the files the user referenced for options that were 
 2. Design or alignment documents the user pointed to, for example `design-alignment-*.md`, Notion pages, or ticket comments
 3. Phrases such as "we could also", "instead of", "we considered", "rejected", "too complex", "decided against"
 
-For each option, record its name, one line on how it works, the reason it lost (in the user's words if possible), and the source.
+For each option, record its name, one line on how it works, the reason it lost (in the user's words if possible), and the source. The source is for your own check only: never write it in the document (see Principles).
 
 ### Step 3 — Find the gaps
 
@@ -90,15 +94,24 @@ WAIT for the answers. If a critical gap stays open, ask one focused follow-up. T
 
 ## Phase 2 — Write the document
 
-1. Read `template.md` and `diagrams.md` in this skill directory.
-2. Write every section of the template, in its order.
-3. Write in the present tense, as if the design is settled: "the service validates", not "the service will validate".
-4. Give the conclusion first, then the reason.
-5. Back each abstract statement with a concrete example: values, IDs, timings.
-6. Name the subject instead of "it", "this", or "they" when the reference is not clear.
-7. Use exactly the term from the Terms table everywhere. Never add a synonym.
-8. Keep paragraphs to 4 sentences or fewer.
-9. Write no filler ("basically", "in order to", "it is worth noting that") and no section introductions ("In this section, we will discuss…").
+1. Pick the template, and name the pick in one line before you write:
+
+   | The change | Template |
+   |---|---|
+   | One or more new public endpoints (REST, MCP tool, GraphQL field) | `endpoint-template.md` (1,500-3,000 words) |
+   | One other incremental change: a new RPC, field, or a change to one flow | `mini-template.md` (1,500-3,000 words) |
+   | A new service, a new bounded context, or a change across many services | `template.md` |
+
+   If the user names a template, use it.
+2. Read the picked template and `diagrams.md` in this skill directory.
+3. Write every section of the template, in its order. Before you publish, count the words; if a mini doc is over 3,000, cut repeats first.
+4. Write in the present tense, as if the design is settled: "the service validates", not "the service will validate".
+5. Give the conclusion first, then the reason.
+6. Back each abstract statement with a concrete example: values, IDs, timings.
+7. Name the subject instead of "it", "this", or "they" when the reference is not clear.
+8. Use exactly the term from the Terms table everywhere. Never add a synonym.
+9. Keep paragraphs to 4 sentences or fewer.
+10. Write no filler ("basically", "in order to", "it is worth noting that") and no section introductions ("In this section, we will discuss…").
 
 ## Phase 3 — Publish
 
@@ -109,7 +122,7 @@ Create the page with `mcp__notion__notion-create-pages`:
 
 Then reply with:
 1. The link to the page
-2. A short summary: the sections included, the diagrams, the number of terms and use cases, the alternatives and their sources, and each skipped section with the reason
+2. A short summary: the template used and the word count, the sections included, the diagrams, the number of terms and use cases, the alternatives, and each skipped section with the reason
 3. "Anything you'd like me to revise before you share it for review? Describe what to adjust and say "retry" to regenerate."
 
 ## Examples

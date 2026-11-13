@@ -4,9 +4,11 @@ Write every section below, in this order. If a section does not apply, skip it a
 
 ## Contents
 - Header
+- Table of contents
 - Section 0 — Terms
 - Section 1 — Problem Statement
 - Section 2 — Goals & Non-Goals
+- Section 2b — Industry Peers
 - Section 3 — Background & Context (3.1 Current Workflow)
 - Section 4 — Design Overview
 - Section 4b — Use Cases
@@ -28,11 +30,21 @@ Write every section below, in this order. If a section does not apply, skip it a
 **Last Updated:** [output of `date -u +%Y-%m-%d`]
 ```
 
+## Table of contents
+
+Put a Notion table of contents block directly under the header, before Section 0, so a reader can jump to any section:
+
+```
+<table-of-contents />
+```
+
+Notion builds it from the headings, so write no list by hand.
+
 ---
 
 ### Section 0 — Terms
 
-Put this table directly under the header, before the Problem Statement. Define only the high-level concepts the whole design rests on - usually 3 to 6. If the spec has none, skip the section. Sort rows alphabetically.
+Put this table directly under the table of contents, before the Problem Statement. Define only the high-level concepts the whole design rests on - usually 3 to 6. If the spec has none, skip the section. Sort rows alphabetically.
 
 | Term | Definition | Example | Not to be confused with |
 |------|------------|---------|-------------------------|
@@ -68,7 +80,30 @@ No solution in this section. Pure problem framing.
 
 **Non-Goals** — explicit list of what this design does NOT solve.
 - Non-goals prevent scope creep. Be specific.
-- Example: "Out of scope: mobile push notifications — addressed in ENG-XXXXX"
+- Example: "Out of scope: mobile push notifications"
+
+Rules for both lists:
+- Name only work that belongs to this ticket. Never list work of another ticket or a change to another endpoint (for example "2FA for an existing endpoint - separate ticket").
+- Never list logic that already exists (for example "physical cards cannot get a replacement - the issuer ships a new plastic card"). Put an existing fact in Background & Context.
+- List a non-goal only if someone asked for it (the ticket, the user, a stakeholder) and the design does not do it. Never list a thing that nobody asked for and that the design leaves as the current behavior does (for example "no 2FA on the API path - the existing endpoint has none, and this one follows it").
+
+---
+
+### Section 2b — Industry Peers
+
+Show how comparable products solve the same problem, so a reader sees the design against the market before the details. Put it here, near the top, never in the Appendix.
+
+Write one comparison table. One column for this design (first), one column for each industry peer. One row for each dimension that matters to the design. Keep only the rows that differ. Link each peer's name to the docs page that the facts come from. Write "not documented" when a peer's docs say nothing; never guess.
+
+| Dimension | This design | Peer A | Peer B |
+|-----------|-------------|--------|--------|
+| Endpoint | `POST /v1/exports` | `POST /reports` | `GET /statements?async=true` |
+| Response | `202 {export_id}` | `200 {report_id}` | `202` + webhook |
+| Repeat request | Same result | not documented | `409` |
+
+Write only the table: no bullets, no summary, no prose under it. The reasons for the design belong in Detailed Design and Alternatives Considered.
+
+If no peer was researched, write one sentence that says so.
 
 ---
 
@@ -106,7 +141,7 @@ Under the diagram, repeat the flow as numbered steps that match the `autonumber`
 3. The API calls the vendor and blocks. **Pain:** a large statement takes 30 s and the gateway times out at 29 s.
 4. ...
 
-Use an ASCII diagram in addition only if the current-state architecture (not the flow) is non-obvious.
+Add a Mermaid `flowchart` of the current architecture only if the architecture (not the flow) is non-obvious.
 
 ---
 
@@ -114,24 +149,19 @@ Use an ASCII diagram in addition only if the current-state architecture (not the
 
 High-level summary of the solution in 2-4 paragraphs. A senior engineer should understand the approach after reading this section alone.
 
-**Always include a high-level ASCII architecture diagram** showing:
+**Always include a high-level Mermaid architecture diagram** (`flowchart`) showing:
 - Components involved
 - Data/request flow direction
 - External dependencies
 
 Example diagram style:
-```
-  Client
-    │
-    ▼
-┌─────────────┐      ┌──────────────┐
-│  API Gateway │─────▶│  Auth Service │
-└─────────────┘      └──────────────┘
-    │
-    ▼
-┌─────────────┐      ┌──────────────┐
-│  Order Svc  │─────▶│   DB (Postgres)│
-└─────────────┘      └──────────────┘
+```mermaid
+flowchart TD
+    Client([Client]) --> Gateway[API Gateway]
+    Gateway --> Auth[Auth Service]
+    Gateway --> Orders[Order Service]
+    Orders --> DB[(Postgres)]
+    Orders -.->|async| Kafka{{Kafka}}
 ```
 
 **Also include a Mermaid sequence diagram of the new high-level workflow**, with the same actors as Section 3.1 so the reader can compare them side by side. Use `rect` blocks or `Note` lines to mark what changed:
@@ -269,7 +299,7 @@ Explain non-trivial logic in plain language. Use pseudocode only if it genuinely
 
 ### Section 6 — Alternatives Considered
 
-Include every alternative found in Phase 1 Step 1b, plus any the user named in Step 3. Minimum 2 alternatives. Even "do nothing" counts as an alternative. Never invent a rejection reason - if the conversation gives none, list it as an Open Question.
+Include every alternative found in Phase 1 Step 1b, plus any the user named in Step 3. Leave out an alternative that is only "do what a peer does" when the Industry Peers table (Section 2b) already shows it; the table is enough. Minimum 2 alternatives. Even "do nothing" counts as an alternative. Never invent a rejection reason - if the conversation gives none, list it as an Open Question.
 
 Start with a summary table. Write one row per dimension, one column per option, and keep only the rows that differ:
 
@@ -298,7 +328,7 @@ Then write one subsection per alternative:
 - Holds a connection open for up to 120 s, which limits concurrency.
 - The vendor can still take longer than 120 s at month end.
 
-**Why rejected:** <reason, quoted or paraphrased from the conversation> (source: <message, doc, or link>)
+**Why rejected:** <the reason itself, as a fact about the design. Never cite the conversation, a drill question, or an alignment document. Cite only code, docs, tickets, or external pages that a reader can open.>
 ```
 
 Put the chosen design first in the table, so the reader sees the comparison against it.
