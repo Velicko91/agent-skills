@@ -1,7 +1,9 @@
 {
-  "_comment": "Copy to data.json and edit. poolSize: design questions to find. askTop: the most important questions to ask. perRound: questions in one message. autoPickPercent: pick a question with no ask when its top option has more than this percentage.",
+  "_comment": "Copy to data.json and edit. poolSize: design questions to find. askTop: the most important questions to ask. perRound: questions in one message. autoPickPercent: pick a question with no ask when its top option has more than this percentage. peers: map of repo name to {industry peer product: API docs url} whose public API docs Phase 2 researches. uiParity: map of repo name to the UI path that the repo copies one to one; Phase 2 traces it and each divergence is a user decision.",
   "poolSize": 45,
   "askTop": 20,
   "perRound": 4,
-  "autoPickPercent": 95
+  "autoPickPercent": 95,
+  "peers": {},
+  "uiParity": {}
 }

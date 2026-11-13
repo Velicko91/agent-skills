@@ -55,6 +55,8 @@ Read `data.json` in this skill directory. If it is missing, copy `data.example.j
 | `askTop` | `20` | The number of the most important questions that Phase 4 asks the user |
 | `perRound` | `4` | The number of questions in one message |
 | `autoPickPercent` | `95` | If the top option of a question has more than this percentage, pick it with no question |
+| `peers` | `{}` | A map from a repo name to the industry peers (comparable products) to research for that repo, each with the url of its API docs, for example `{"public-api": {"Peer Product": "https://docs.example.com/reference/get-resource"}}` |
+| `uiParity` | `{}` | A map from a repo name to the UI path that the repo must copy one to one, for example `{"public-api": "the web app's GraphQL operation (the API gateway to the owning service resolver)"}`. See "UI parity" below. |
 
 If a key is missing, use its default.
 
@@ -98,6 +100,24 @@ List 5–10 research topics. Give each topic the place to look, the reason, and 
 ```
 
 In `repos` mode, add the web as the last topic, because a repo search can find nothing.
+
+If `peers` has a key for the name of the current repo, add one topic for each peer: "How <peer> does it", with its docs url as the place to look. Start the research at that url, and follow its links to the pages of the topic. Give each one 80% or more, because a peer that shipped it shows the contract that the customers already know. Research these topics with Step 2b. If a peer has no public docs for the topic, say so, and do not guess its design.
+
+If `uiParity` has a key for the name of the current repo, add the topic "How the UI does it" at 100%, first in the list. The user cannot unpick it. See "UI parity" below.
+
+#### UI parity
+
+The repos in `uiParity` copy the UI. The UI behavior is the default for every decision, and a divergence is a decision with its own reason. A design that drifts from the UI gives a customer two answers to the same action.
+
+1. **Trace the UI path.** Find each GraphQL operation that the web app sends for the action, for example one mutation for each toggle state. Follow each one through the API gateway to the resolver in the owning service, and read the resolver on the default branch of the remote.
+2. **Record each rule of each operation,** with `<repo>/<path>:<line>`:
+   - the permissions, and the permission map they come from
+   - the 2FA, step-up challenge or approval, with its action, its details and its feature flag, and what happens when the flag is off
+   - the validation and the refusals, with their order
+   - the side effects: audit events, notifications, Kafka or Pub/Sub events
+   - the cases that the UI blocks in the frontend only
+3. **Make the UI behavior option A** of each question that it touches, marked `UI parity`. An option that diverges says `Divergence:` and what the user of the API sees differently.
+4. **Ask each divergence as a question.** Never pick a divergence as `AUTO` or as your call, because the user decides each one.
 
 # --- CHECKPOINT ---
 STOP and WAIT for the user to pick the topics. Research only the topics that the user picks.
@@ -268,6 +288,7 @@ Before you write, check that the design holds together:
 - **Unstated assumptions:** did you assume something that the user never confirmed? Ask it now.
 - **The disagreement axes of Phase 2:** is each one resolved?
 - **Combined code:** do the sketches of the picked options work together? Write them as one sketch, and look for a conflict, for example two picks that each own the same transaction.
+- **UI parity** (if `uiParity` has the repo): write the parity table of Phase 6. Each row is `Match`, or a `Divergence` that the user picked, with its reason. A row with no decision is a gap: ask it.
 
 If a check fails, run one more round.
 
@@ -298,6 +319,11 @@ Show the alignment summary, with the combined sketch of the picked options. List
 - **Rejected:** <option> — <why>
 
 The implementation follows these sketches. A change to a sketch is a new decision, so ask the user first.
+
+## UI parity
+<!-- Only if uiParity has the repo. One row for each rule of each UI operation. -->
+| Rule | UI (<GraphQL operation>, <repo>/<path>:<line>) | <each entry point, for example REST and MCP> | Match or divergence | Why |
+|------|-----|-----|-----|-----|
 
 ## Combined sketch
 ```<language>
