@@ -1,0 +1,24 @@
+{
+  "_comment": "Copy to data.json. schedule.cron is five cron fields in local time (0 10 * * 3 = Wednesday 10:00); tz is optional. loops.dir is the folder of loops.json. projects and declined are kept by the skill: do not edit them by hand.",
+  "schedule": {
+    "cron": "0 10 * * 3",
+    "tz": null
+  },
+  "lookbackDays": 7,
+  "closeToFinish": {
+    "milestonePercent": 75,
+    "targetDays": 14
+  },
+  "loops": {
+    "dir": "",
+    "settingsDir": "~/.config/cmux/loops",
+    "model": "sonnet"
+  },
+  "projects": [
+    {
+      "id": "P-PROJ-101",
+      "name": "Acme API: Webhook retries"
+    }
+  ],
+  "declined": []
+}
