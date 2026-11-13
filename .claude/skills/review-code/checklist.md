@@ -27,6 +27,16 @@ Check each changed file for these items, in addition to Sections A–E. Put each
 - Missing `None` checks
 - A wrong operator (`=` vs `==`, `and` vs `or`)
 
+## Ordering guards in async (Kafka) flows
+
+Apply this when the diff touches a consumer, a producer, or a synchronous write on the same data as a consumer, and it changes a guard that orders writes (a watermark, a sequence, a version, an `updated_at` comparison) or any write of a field that such a guard reads. Kafka retries, dead-letter replays, and consumer lag deliver events late, so an event's arrival order is not its production order.
+
+1. List the fields the guard reads, and every statement in the repository that writes each of them. Grep the column or field name, not only the changed function.
+2. Check each writer for monotonicity: after the write, the guard's position must not be older than before, by the same comparison that the guard uses. A finding is a write that sets the field from an older event, clears it, or puts back a value that another writer cleared.
+3. Check sequences of three events, not only pairs. For each pair of writers A and B, follow "A, then a delayed older event from B, then a delayed older event of the opposite kind (an apply after a remove, a remove after an apply)", and name the final state of each sequence.
+4. If the guard compares two encodings (for example a sequence first and the time as a fallback), check each transition between them: when a row gains, loses, or gets back the first encoding.
+5. Ask for one regression test per sequence that fails, and check that the test fails without the fix.
+
 ## Test files
 - An import inside a test function that belongs at module level
 - A test with no assertion, or one that does not test the changed code
