@@ -2,7 +2,7 @@
 name: make-curl-png
 description: Runs curl requests against a local service, captures the requests and responses in a fixed-size Terminal.app window as a PNG, and attaches it to the PR after confirmation. Use for "curl screenshot", "PR verification proof", or "/make-curl-png".
 user-invocable: true
-allowed-tools: Bash(~/.claude/skills/make-curl-png/capture.sh *), Bash(curl *), Bash(mkdir *), Bash(ls *), Bash(gh pr view *), Bash(gh pr edit *), Write, Read
+allowed-tools: Bash(~/.claude/skills/make-curl-png/capture.sh *), Bash(TOKEN=* ~/.claude/skills/make-curl-png/capture.sh *), Bash(curl *), Bash(mkdir *), Bash(ls *), Bash(gh pr view *), Bash(gh pr edit *), Write, Read
 model: sonnet
 ---
 
@@ -19,6 +19,8 @@ Run curl requests against a running service, and save a screenshot of the reques
 - ALWAYS show every command in full, exactly as it ran. NEVER run a filter, check, or step outside the screenshot and present its result as proof.
 - Do not start or stop the service under test.
 - Keep a screenshot to one or two requests. If the user gives more, propose several screenshots.
+- ALWAYS put each UUID in a variable with a name that says what it is, for example `CARD_ID` or `FIELD_ID`, and use `"$CARD_ID"` in the commands. The variables show at the top of the screenshot, so a reader sees each ID once and knows what it is.
+- NEVER write a token to a file. Pass it with `--secret TOKEN`, so the screenshot shows `TOKEN=<hidden>`.
 
 ## Prerequisites
 
@@ -47,14 +49,30 @@ Run curl requests against a running service, and save a screenshot of the reques
 | `--pr <number\|url>` | the open PR of the current branch | The PR to attach to |
 | `--no-attach` | offer to attach | Only save the PNG |
 
-Fixed by `capture.sh`: the window is 3/4 of the main screen, top-left, with a dark theme. The title bar is cropped. The font is Menlo 12pt, reduced to 8pt if the output is too tall. The script uses its own profiles `make-curl-png` and `make-curl-png-alt`, and never changes the user's profiles. Tokens appear as typed, with no masking.
+Fixed by `capture.sh`: the window is 3/4 of the main screen, top-left, with a dark theme. The title bar is cropped. The font is Menlo 12pt, reduced to 8pt if the output is too tall. The script uses its own profiles `make-curl-png` and `make-curl-png-alt`, and never changes the user's profiles. A `--secret` value appears as `<hidden>`. Every other value appears as typed.
 
 ## Nothing hidden
 
 - Prefer one plain `curl` command for each request. The script lays out its response with one line for each top-level JSON property.
 - Use a pipe only if the proof needs it, for example `curl ... | jq '.data | length'` to show a count. The screenshot shows the full command and the output of the pipe unchanged.
-- Allow `curl` plus at most two pipe steps. NEVER use `;`, `&&`, `$(...)`, a redirect, or a script, because a reader cannot check them from the picture.
-- The commands run in a new Terminal shell with none of your environment variables. To send a token without showing it, write the header to a file and pass `-H @/path/to/auth.header`.
+- Allow `curl` plus at most two pipe steps. NEVER use `;`, `&&`, `$(...)`, a redirect, or a script, because a reader cannot check them from the picture. A variable such as `"$CARD_ID"` is allowed.
+- The commands run in a new Terminal shell with none of your environment variables. Only the variables of the requests file and the `--secret` values exist there.
+
+## Variables
+
+The requests file starts with one line for each variable, before the first command:
+
+```
+CARD_ID=6f1c2a3b-0000-4000-8000-000000000001
+FIELD_ID=0b7e4d1c-0000-4000-8000-000000000002
+curl -X DELETE "http://localhost:8080/v1/cards/$CARD_ID/fields/$FIELD_ID" -H "Authorization: Bearer $TOKEN"
+```
+
+- Write a variable line as `NAME=value` or `NAME='value'`. The name is upper case, and the value is literal, with no `$`, backtick, or `;`. `capture.sh` refuses any other line.
+- Name a variable for what the ID is: `CARD_ID`, `TRANSACTION_ID`, `LINE_ID`, `OPTION_ID`. If two IDs have the same type, add what makes them different, for example `SOURCE_ACCOUNT_ID` and `TARGET_ACCOUNT_ID`.
+- Put each UUID in a variable, also a UUID in a body or a query. Quote a body with `"` so the variable expands, for example `-d "{\"option_ids\":[\"$OPTION_ID\"]}"`.
+- In a `jq` filter, pass the variable with `--arg`, because single quotes stop the shell from expanding it: `jq --arg id "$FIELD_ID" '[.fields[] | select(.field_id == $id)]'`.
+- Pass the token in the environment of `capture.sh`, and name it with `--secret TOKEN`. The script gives it to the Terminal shell, and the screenshot shows `$ TOKEN=<hidden>` above the other variables. Use the same flag for each other secret, for example an API key.
 
 ## Prove a DELETE
 
@@ -65,7 +83,7 @@ A `204` from `DELETE` does not prove that the value is gone. The screenshot of a
 3. `GET` the resource again — the value is gone.
 
 - If the value does not exist yet, create it before the capture.
-- If the `GET` response is too large, select the value with `jq`, for example `curl ... | jq '[.fields[] | select(.field_id == "<id>")]'`, which shows `[]` after the delete.
+- If the `GET` response is too large, select the value with `jq`, for example `curl ... | jq --arg id "$FIELD_ID" '[.fields[] | select(.field_id == $id)]'`, which shows `[]` after the delete.
 - If reads converge asynchronously and the second `GET` still shows the value, wait until it converges. Then capture the second `GET` in its own screenshot, and say why in the report.
 
 ## Workflow
@@ -77,6 +95,8 @@ A `204` from `DELETE` does not prove that the value is gone. The screenshot of a
    - Join a command with `\` line continuations into one line.
    - Expand `METHOD URL [body]` to `curl -X METHOD 'URL'`. With a body, add `-H 'Content-Type: application/json' -d '<body>'`.
    - Remove `-i`, `-v`, `-o`, `-s`, `-w`, and `-D`, because they conflict with the flags of the script.
+   - Replace each UUID with a variable, and add its line at the top, as "Variables" says. Use one variable for a UUID that occurs more than once.
+   - Replace the token with `$TOKEN`, and keep its value only for the `--secret TOKEN` call in Step 3.
 3. If a command does not start with `curl `, stop and show it to the user.
 4. If a command has `;`, `&&`, `$(...)`, a redirect outside quotes, or more than two pipe steps, propose a simpler command or two commands. STOP and WAIT.
 5. If a command is a `DELETE` without a `GET` before and after it, add the missing `GET`.
@@ -110,15 +130,17 @@ If a request uses `POST`, `PUT`, `PATCH`, or `DELETE` (with `-X`, `--request`, o
    2. jq '.data | length' - counts the items in the data array, so the screenshot shows the count
    ```
 
-2. Write the commands to `/tmp/make-curl-png/<test-case>.requests`, one per line, exactly as they will appear.
+2. Write the variable lines, then the commands, to `/tmp/make-curl-png/<test-case>.requests`, one per line, exactly as they will appear. The file holds no token.
 3. Run:
 
    ```bash
-   ~/.claude/skills/make-curl-png/capture.sh \
+   TOKEN='<token>' ~/.claude/skills/make-curl-png/capture.sh \
      --requests /tmp/make-curl-png/<test-case>.requests \
      --out /tmp/make-curl-png/<test-case>.png \
-     [--title "<text>"] [--headers] [--depth 2]
+     [--secret TOKEN] [--title "<text>"] [--headers] [--depth 2]
    ```
+
+   Leave out `TOKEN=` and `--secret` if the requests send no token. The script keeps the token only for a moment, in a private file of its work folder, and deletes it before the first request runs.
 
    The script runs each command once and saves the results, so a redraw never repeats a request. It puts the user's app and window back in front, and captures from behind them, in about 3–4 seconds. If the output is too tall, it reduces the font. If the top still does not fit, it steps down from depth 2 to depth 1, then to the raw body.
 4. Give each `NOTE:` line to the user, for example that the font was reduced or that the body is raw.
@@ -165,7 +187,7 @@ If a request uses `POST`, `PUT`, `PATCH`, or `DELETE` (with `-X`, `--request`, o
 
 ## Examples
 
-- `/make-curl-png curl http://localhost:8080/v1/cards/card_123 -H 'Authorization: Bearer sandbox-token'`
+- `/make-curl-png curl http://localhost:8080/v1/cards/card_123 -H 'Authorization: Bearer sandbox-token'` ← the screenshot shows `TOKEN=<hidden>`, and the command uses `$TOKEN`
 - `/make-curl-png --title "PROJ-1234 - create a card" POST http://localhost:8080/v1/cards {"name":"Travel"}`
 - `/make-curl-png curl http://127.0.0.1:8080/v1/cards | jq '.data | length'`
 - `/make-curl-png --pr 123 --title "PROJ-1234 - get a card" curl http://localhost:8080/v1/cards/card_123`

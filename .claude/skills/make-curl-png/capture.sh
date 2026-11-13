@@ -3,11 +3,16 @@
 # that window. Built-in tools only: osascript, screencapture, and jq if present.
 #
 # Usage: capture.sh --requests <file> --out <png> [--title <text>] [--headers] [--depth 1|2]
+#                   [--secret NAME]...
 #   --depth sets how many JSON levels of a plain curl response get one line per property
 #   (default 1). Deeper values stay compact.
-#   <file> holds one command per line: a plain curl command, or a curl command piped into
-#   other tools (curl ... | jq '.data | length'). Blank lines and lines starting with # are skipped.
-#   The screenshot shows every command in full, exactly as written in the file.
+#   <file> starts with variable lines (CARD_ID=<uuid>), then holds one command per line: a plain
+#   curl command, or a curl command piped into other tools (curl ... | jq '.data | length').
+#   Commands use the variables as "$CARD_ID". Blank lines and lines starting with # are skipped.
+#   A variable line is NAME=value or NAME='value', with an upper-case NAME and a literal value.
+#   --secret NAME takes the value of the environment variable NAME (for example a token), so the
+#   value is never in <file>. The screenshot shows it as NAME=<hidden>.
+#   The screenshot shows every variable and every command in full, exactly as written in the file.
 #
 # The window uses its own Terminal profile ("make-curl-png"), so the user's profiles are never
 # changed. If the output is taller than the window, the font shrinks step by step down to
@@ -15,10 +20,11 @@
 set -euo pipefail
 
 BASE_FONT=12 MIN_FONT=8 PROFILE="make-curl-png"
-REQUESTS="" OUT="" TITLE="" HEADERS=0 DEPTH=1
+REQUESTS="" OUT="" TITLE="" HEADERS=0 DEPTH=1 SECRETS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --requests) REQUESTS="$2"; shift 2 ;;
+    --secret)   SECRETS+=("$2"); shift 2 ;;
     --out)      OUT="$2"; shift 2 ;;
     --title)    TITLE="$2"; shift 2 ;;
     --headers)  HEADERS=1; shift ;;
@@ -30,10 +36,32 @@ done
 [ -n "$OUT" ] || { echo "--out is required" >&2; exit 2; }
 case "$DEPTH" in 1|2) ;; *) echo "--depth must be 1 or 2" >&2; exit 2 ;; esac
 
+# Every line is a variable line (before the first command) or a curl command, so a bad variable
+# line fails here, before anything runs. The runner uses the same pattern.
+VAR_RE="^([A-Z][A-Z0-9_]*)=('([^']*)'|([^\"'\$\`;&|<> ]*))\$"
+seen_cmd=0
+while IFS= read -r line || [ -n "$line" ]; do
+  case "$line" in ''|'#'*) continue ;; esac
+  if [ "$seen_cmd" = 0 ] && [[ "$line" =~ $VAR_RE ]]; then continue; fi
+  case "$line" in
+    curl\ *) seen_cmd=1 ;;
+    *) echo "not a curl command or a literal NAME=value line before the first command: $line" >&2; exit 2 ;;
+  esac
+done < "$REQUESTS"
+
 WORK=$(mktemp -d /tmp/make-curl-png.XXXXXX)
 RUN="$WORK/run.sh"
 printf '%s' "$TITLE" > "$WORK/title"
 printf '%s' "$DEPTH" > "$WORK/depth"
+
+# The Terminal shell does not inherit this environment, so each secret goes to the runner in a
+# file that only this user can read. The runner deletes it before the first request runs.
+for name in ${SECRETS[@]+"${SECRETS[@]}"}; do
+  [[ "$name" =~ ^[A-Z][A-Z0-9_]*$ ]] || { echo "--secret needs an upper-case name: $name" >&2; exit 2; }
+  [ -n "${!name:-}" ] || { echo "--secret $name: the environment variable $name is empty" >&2; exit 2; }
+  (umask 077; printf '%s' "${!name}" > "$WORK/secret.$name")
+done
+trap 'rm -f "$WORK"/secret.*' EXIT
 
 # The script that runs inside the Terminal window. Values come from files and
 # environment variables, so no request text is spliced into AppleScript.
@@ -57,13 +85,28 @@ pipe_at() {
   done
 }
 
+# Exports each secret, deletes its file, and records its name for the screenshot.
+: > "$W/vars"
+for f in "$W"/secret.*; do
+  [ -e "$f" ] || continue
+  name=${f##*/secret.}; export "$name=$(cat "$f")"; rm -f "$f"
+  printf '%s=<hidden>\n' "$name" >> "$W/vars"
+done
+
 # Runs every request once and saves its command, body, headers, errors and timing.
+# Variable lines before the first command are exported and shown at the top of the screenshot.
 # For "curl ... | rest", curl writes the body to a file (so the status and time are known),
 # then the same bytes go into "rest" - the output is what the full command prints.
+VAR_RE="^([A-Z][A-Z0-9_]*)=('([^']*)'|([^\"'\$\`;&|<> ]*))\$"
 run_all() {
   n=0
   while IFS= read -r cmd || [ -n "$cmd" ]; do
     case "$cmd" in ''|'#'*) continue ;; esac
+    if [ "$n" = 0 ] && [[ "$cmd" =~ $VAR_RE ]]; then
+      export "${BASH_REMATCH[1]}=${BASH_REMATCH[3]}${BASH_REMATCH[4]}"
+      printf '%s\n' "$cmd" >> "$W/vars"
+      continue
+    fi
     n=$((n + 1))
     printf '%s' "$cmd" > "$W/cmd.$n"
     at=$(pipe_at "$cmd")
@@ -94,6 +137,10 @@ K=$'\033[34;1m'
 render() {
   mode=$1
   [ -n "$TITLE" ] && printf '%s%s%s  %s%s%s\n\n' "$B" "$TITLE" "$N" "$D" "$STAMP" "$N"
+  if [ -s "$W/vars" ]; then
+    while IFS= read -r v; do printf '%s$ %s%s\n' "$G" "$v" "$N"; done < "$W/vars"
+    echo
+  fi
   for i in $(seq 1 "$(cat "$W/count")"); do
     printf '%s$ %s%s\n' "$G" "$(cat "$W/cmd.$i")" "$N"
     [ -s "$W/err.$i" ] && printf '%s%s%s\n' "$R" "$(cat "$W/err.$i")" "$N"
