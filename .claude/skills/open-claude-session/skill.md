@@ -49,12 +49,42 @@ Parse in this order:
 | Mode | new session | `--resume`, `--fork` |
 | Folder (new) | the current folder | `--cwd <path>` |
 | Folder (resume, fork) | the `sessionCwd` of the work-log entry, else the `worktree`, else the current folder | `--cwd <path>` |
-| Workspace title (new) | `--name`, else `--agent`, else `claude` | `--name <title>` |
+| Workspace title (new) | `--name`, else the ticket name (see [Ticket names](#ticket-names)), else `--agent`, else `claude` | `--name <title>` |
 | Tab or workspace title (fork) | `--name`, else `<session>-fork` | `--name <title>` |
 | Workspace title (resume) | the `session` of the work-log entry | — |
 | Position in the group | at the end | — |
 
 Use the defaults without asking.
+
+### Ticket names
+
+If `--name` is not set and `--prompt` holds a ticket ID or a ticket URL, for example
+`/drill-me https://linear.app/rho/issue/ARC-433/...`, name the session after the ticket. Use the
+name as the workspace title and as `-n` of the Claude session.
+
+```
+<project prefix> <TICKET-ID> <ticket title>
+```
+
+Example: `py-sql ARC-433 approximate capped total counts for offset pagination`.
+
+1. Read the ticket title from the tracker, for example `mcp__linear__get_issue` with `fields: ["title"]`. If it fails, use the slug of the ticket URL, with spaces for the dashes.
+2. Remove a leading area tag that the prefix already gives, for example `rhosql:`. Remove `/` and other punctuation, so the title is plain words.
+3. Take the project prefix from this table. Use the first row that matches the code of the ticket or the folder of the session:
+
+   | Project | Prefix |
+   |---|---|
+   | rhosql: `py-micrho/src/micrho/rhosql`, or a ticket title that starts with `rhosql:` | `py-sql` |
+   | `py-micrho`, any other part | `py-micro` |
+   | `rho-api` | `r-api` |
+   | `investments-service` | `inv` |
+   | `cards-service` | `cs` |
+   | any other repository | the folder name of the repository, without a worktree suffix such as `-ARC-1271` |
+
+4. Start the session in the folder of that project, unless `--cwd` is set.
+
+The prefix and the ticket ID come first, so the cmux sidebar groups the sessions of one
+project, and you can find a session by its ticket without opening it.
 
 ## Work log
 
