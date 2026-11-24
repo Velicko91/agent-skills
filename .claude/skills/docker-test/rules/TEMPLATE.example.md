@@ -4,7 +4,7 @@ Template for one service. `/docker-test` reads `rules/<repo-name>.local.md`, whe
 `<repo-name>` is the last part of `git remote get-url origin`, without `.git`.
 
 To add a service, copy this file to `rules/<repo-name>.local.md` and replace every value.
-Files ending in `.local.md` are gitignored - keep hosts, IDs, and test data there, never in `skill.md`.
+Files ending in `.local.md` are gitignored - keep hosts, IDs, and test data there, never in `SKILL.md`.
 
 ## Setup
 1. In a worktree, copy `.env` from the main checkout, or `.env-example` if there is none.

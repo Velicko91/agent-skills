@@ -20,7 +20,7 @@ Turn a ticket, an optional Notion document, and free comments into a **markdown 
 
 ## Tracker
 
-Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the adapter. Phase 1 uses its Identify section, and Phase 2 its Fetch tool.
+Follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`, and read the adapter. Phase 1 uses its Identify section, and Phase 2 its Fetch tool.
 
 ## Arguments
 

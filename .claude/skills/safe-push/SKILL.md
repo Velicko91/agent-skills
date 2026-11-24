@@ -44,7 +44,7 @@ Resolve a conflict automatically, with no question, whenever you can (steps 1–
    - A lockfile: take the other side's version, and generate the lock again with the project's resolver (for example `poetry lock`, `uv lock`, or `npm install --package-lock-only`). NEVER merge lockfile hunks by hand.
 4. Check that no marker is left: `git diff --check`, and search the files for `<<<<<<<`, `=======`, and `>>>>>>>`.
 5. Stage the resolved files by name, and finish the merge: `git commit --no-edit`.
-6. Run the full test suite with the test stamp rules of `~/.claude/skills/verify-stamp/skill.md`. If a test fails because of the merge, fix it.
+6. Run the full test suite with the test stamp rules of `~/.claude/skills/verify-stamp/SKILL.md`. If a test fails because of the merge, fix it.
 7. Run `push.sh` again. If it reports a conflict again, repeat once.
 
 Report each resolved file in one line: the file, and how both sides were kept.

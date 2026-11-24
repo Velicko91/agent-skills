@@ -28,7 +28,7 @@ The value is the **grounding**: the questions come from real prior art, so they 
 - NEVER write an implementation plan: no file lists, no step lists, no full functions. The code in an option is a sketch that shows only how the option differs. This skill settles decisions, not code.
 - Record why each decision was made, not only what. In six months the reasoning is the part that nobody remembers.
 - Stop when more questions would not change the design, because over-drilling is a failure too.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
 

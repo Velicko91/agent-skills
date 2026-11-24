@@ -1,6 +1,6 @@
 ---
 name: create-skill
-description: Scaffold a new Claude Code skill following all best practices — gathers requirements, designs workflow, writes skill.md, and creates the symlink. Use when creating a new slash command or skill from scratch.
+description: Scaffold a new Claude Code skill following all best practices — gathers requirements, designs workflow, writes SKILL.md, and creates the symlink. Use when creating a new slash command or skill from scratch.
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash(ls *), Bash(mkdir *), Bash(ln *), Bash(cat *), Bash(python3 *), Bash(grep *), Write, Edit
 ---
@@ -13,7 +13,7 @@ Scaffold a new Claude Code skill from scratch, following all established convent
 
 - Skills source: `$CLAUDE_CONFIG_REPO/.claude/skills/`
 - Skills symlink dir: `~/.claude/skills/`
-- Each skill is a directory containing a single `skill.md` file
+- Each skill is a directory containing a single `SKILL.md` file
 - Symlinks make skills available globally
 
 ---
@@ -128,7 +128,7 @@ ls ~/.claude/skills/
 
 If the user named a similar skill, read it:
 ```
-Read ~/.claude/skills/<similar-skill>/skill.md
+Read ~/.claude/skills/<similar-skill>/SKILL.md
 ```
 
 Use what you find to match conventions (section names, flag patterns, output format, defaults tables).
@@ -267,7 +267,7 @@ When retrying:
 ```bash
 mkdir -p $CLAUDE_CONFIG_REPO/.claude/skills/<name>
 ```
-Then write `$CLAUDE_CONFIG_REPO/.claude/skills/<name>/skill.md`.
+Then write `$CLAUDE_CONFIG_REPO/.claude/skills/<name>/SKILL.md`.
 
 **Step 2** — Create the symlink (only if it doesn't exist):
 ```bash
@@ -279,7 +279,7 @@ ln -s $CLAUDE_CONFIG_REPO/.claude/skills/<name> ~/.claude/skills/<name>
 ls -la ~/.claude/skills/<name>
 ```
 
-**Step 4** — Write reference files, if the design has them, into the same directory. Link each one from the step in `skill.md` that uses it.
+**Step 4** — Write reference files, if the design has them, into the same directory. Link each one from the step in `SKILL.md` that uses it.
 
 ---
 
@@ -290,13 +290,13 @@ After creation display:
 ```
 ✅ Created: /<name>
 
-📁 Source:  $CLAUDE_CONFIG_REPO/.claude/skills/<name>/skill.md
+📁 Source:  $CLAUDE_CONFIG_REPO/.claude/skills/<name>/SKILL.md
 🔗 Symlink: ~/.claude/skills/<name>
 
 Invoke with: /<name> [arguments]
 ```
 
-Then show the full skill.md content so the user can review it.
+Then show the full SKILL.md content so the user can review it.
 
 Then list three test inputs for the skill, from the **Test** section of `authoring-rules.md`.
 
@@ -313,7 +313,7 @@ Use this when reviewing a generated skill before finalising:
 - [ ] Description is 300 characters or fewer, with two or three trigger phrases
 - [ ] `model:` matches the work type, or is omitted for judgement work
 - [ ] Body has only what Claude does not know; each rule appears once
-- [ ] Templates, command maps, and schemas are in reference files, linked from `skill.md`
+- [ ] Templates, command maps, and schemas are in reference files, linked from `SKILL.md`
 - [ ] The skill output gives the result first, from a template or an example, with no hard word limit
 - [ ] Arguments documented (required vs. optional, flags explained)
 - [ ] Defaults table present (if applicable)

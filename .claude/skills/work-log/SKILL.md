@@ -66,7 +66,7 @@ If the script exits with an error, print the error and stop. Do not try again wi
    ~/.claude/skills/work-log/worklog.py handoff --key <K> --to '<person>'
    ```
    It prints the moved branches as JSON, with `branch`, `pr`, and `worktree`.
-2. Assign the ticket to `<person>`. Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and use the Update tool of the adapter with `assignee: <person>`.
+2. Assign the ticket to `<person>`. Follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`, and use the Update tool of the adapter with `assignee: <person>`.
 3. For each moved branch that has a `worktree`, push the commits that are not on GitHub yet, so the person can get them:
    ```bash
    git -C '<worktree>' push -u origin '<branch>'

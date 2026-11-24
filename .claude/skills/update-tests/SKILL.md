@@ -150,7 +150,7 @@ Read `consolidate.md` in this skill directory, and follow it.
 ## Phase 4 — Final run (on request, or always with `--auto`)
 
 1. Run the tests of each affected file: `poetry run pytest tests/path/test_file.py -v`, with `--cov=<module>` if `--coverage` is given.
-2. Run the full suite with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md`: `check tests` first, and skip the run if it prints `FRESH`. After the run, `record tests passed|failed`.
+2. Run the full suite with the test stamp rules in `~/.claude/skills/verify-stamp/SKILL.md`: `check tests` first, and skip the run if it prints `FRESH`. After the run, `record tests passed|failed`.
 
 With `--auto`, end with:
 

@@ -3,7 +3,7 @@
 Template for one service. `/test-on-dev` reads `services/<service>.local.md`.
 
 To add a service, copy this file to `services/<service>.local.md` and replace every value.
-Files ending in `.local.md` are gitignored - keep hosts, IDs, and test data there, never in `skill.md`.
+Files ending in `.local.md` are gitignored - keep hosts, IDs, and test data there, never in `SKILL.md`.
 
 ## Dev hosts
 `/test-on-dev` calls only these hosts and kubectl contexts. Anything else stops the run.

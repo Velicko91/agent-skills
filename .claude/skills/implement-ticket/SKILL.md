@@ -25,7 +25,7 @@ Build a reviewed plan from a ticket or a description. Get approval, then impleme
 - Use `date -u +%Y-%m-%d` for every date. NEVER guess today's date.
 - ALWAYS update the PR description after each push to an open PR, as "PR description" says. A stale description describes code that is not on the branch.
 - If an outside state blocks an action, start a retry job, as "Retry a blocked action" says. Do not stop and wait for the user.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
 
@@ -44,7 +44,7 @@ Add `--no-incremental` to implement the whole plan at once, and to leave the cha
 
 ## Tracker
 
-Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the adapter. Phase 1 uses its Identify and Tools sections, and every call follows its Rules.
+Follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`, and read the adapter. Phase 1 uses its Identify and Tools sections, and every call follows its Rules.
 
 ## Workflow
 
@@ -216,7 +216,7 @@ After the last step, run Phase 7, then Phase 8. The final `/review-code --branch
 
 With `--no-incremental`, first add or update the tests. Follow the patterns of the existing tests for that domain. Stage the tests after the source changes, so the diff is easy to review.
 
-Run the full test suite, with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md`: `check tests` before the run, and `record tests passed|failed` after it. If a test fails, fix it and run the suite again. Without `--no-incremental`, commit the fix as its own commit, as in Phase 6a step 5.
+Run the full test suite, with the test stamp rules in `~/.claude/skills/verify-stamp/SKILL.md`: `check tests` before the run, and `record tests passed|failed` after it. If a test fails, fix it and run the suite again. Without `--no-incremental`, commit the fix as its own commit, as in Phase 6a step 5.
 
 ### Phase 8 — Review and finish ⟨ph:2976f0d6⟩
 
@@ -247,7 +247,7 @@ Without `--no-incremental`, commit the fixes of each review round in Phase 8 and
 
    Run /create-pr when ready to open a pull request.
    ```
-7. When the PR is open, run `/work-log update --branch <branch> --pr <url> --status in-review`. Show the PR and its commits as links, as `~/.claude/skills/github-links/skill.md` says.
+7. When the PR is open, run `/work-log update --branch <branch> --pr <url> --status in-review`. Show the PR and its commits as links, as `~/.claude/skills/github-links/SKILL.md` says.
    - If Phase 8a saved screenshots, ask: "Attach the screenshots to <PR>?" After a yes, run `/make-curl-png --pr <url>` with the same requests.
 8. Start the merge check at once, with no question. Run this with Bash `run_in_background`:
 
@@ -334,7 +334,7 @@ Do not start a retry job in these cases:
 ## Other rules
 
 - Follow the Rules of the tracker adapter on every tracker call.
-- When you push more commits to an open PR, for example after a follow-up change or a review fix, report each new commit as a link, as `~/.claude/skills/github-links/skill.md` says.
+- When you push more commits to an open PR, for example after a follow-up change or a review fix, report each new commit as a link, as `~/.claude/skills/github-links/SKILL.md` says.
 
 ## PR description
 

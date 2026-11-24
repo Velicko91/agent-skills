@@ -20,7 +20,7 @@ Inspect the code behind the user's bullets, and create a ticket that states the 
 
 ## Tracker
 
-Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the adapter. Use its Config, Tools, and Create sections in the steps below.
+Follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`, and read the adapter. Use its Config, Tools, and Create sections in the steps below.
 
 ## Arguments
 

@@ -1,6 +1,6 @@
 ---
 name: update-skill
-description: Updates an existing Claude Code skill by reading the current skill.md, applying described changes, showing a diff, and iterating until the user is satisfied. Use when modifying, improving, or extending an existing slash command or skill.
+description: Updates an existing Claude Code skill by reading the current SKILL.md, applying described changes, showing a diff, and iterating until the user is satisfied. Use when modifying, improving, or extending an existing slash command or skill.
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash(ls *), Bash(diff *), Bash(mv *), Bash(ln *), Bash(rm *), Bash(cat *), Bash(python3 *), Bash(grep *), Bash(wc *), Bash(cp *), Bash(mkdir *)
 ---
@@ -120,7 +120,7 @@ Parse `$ARGUMENTS` by splitting on the first whitespace: everything before = ski
 1. Parse skill name and change description from `$ARGUMENTS`.
 2. Check that the skill exists:
    ```bash
-   ls $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md
+   ls $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md
    ```
    If it does not exist, STOP and output:
    ```
@@ -132,7 +132,7 @@ Parse `$ARGUMENTS` by splitting on the first whitespace: everything before = ski
    Do NOT proceed.
 3. Read the current skill file and any reference files that it links:
    ```
-   Read $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md
+   Read $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md
    ```
 4. Read `~/.claude/skills/create-skill/authoring-rules.md`.
 
@@ -148,13 +148,13 @@ Parse `$ARGUMENTS` by splitting on the first whitespace: everything before = ski
    Write each new or changed reference file to `/tmp/update-skill-proposed/<file>`.
 3. Show the diff against the original:
    ```bash
-   diff -u $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md /tmp/update-skill-proposed.md
+   diff -u $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md /tmp/update-skill-proposed.md
    ```
    For a new reference file, diff it against `/dev/null`.
    Display the diff output in a code block.
 4. Show the size before and after:
    ```bash
-   wc -c $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md /tmp/update-skill-proposed.md
+   wc -c $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md /tmp/update-skill-proposed.md
    ```
 5. If the trim pass ran, list each fact that moved to a reference file, and give the name of that file.
 
@@ -172,7 +172,7 @@ Repeat until the user says "done" (or a clear equivalent like "looks good", "shi
 1. Apply the user's requested changes to `/tmp/update-skill-proposed.md`.
 2. Show the updated diff:
    ```bash
-   diff -u $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md /tmp/update-skill-proposed.md
+   diff -u $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md /tmp/update-skill-proposed.md
    ```
 3. Ask again:
    > What should I modify? (or say **"done"** to save)
@@ -198,11 +198,11 @@ Once the user approves:
      ln -s $CLAUDE_CONFIG_REPO/.claude/skills/<new-name> ~/.claude/skills/<new-name>
      ```
    - Write the final content to:
-     `$CLAUDE_CONFIG_REPO/.claude/skills/<new-name>/skill.md`
+     `$CLAUDE_CONFIG_REPO/.claude/skills/<new-name>/SKILL.md`
 
    **If the name did not change:**
    - Write the final content to:
-     `$CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md`
+     `$CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md`
 
 2. Copy each file from `/tmp/update-skill-proposed/` into the skill directory.
 
@@ -218,11 +218,11 @@ Display:
 ```
 ✅ Updated: /<skill-name>
 
-📁 Source:  $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/skill.md
+📁 Source:  $CLAUDE_CONFIG_REPO/.claude/skills/<skill-name>/SKILL.md
 🔗 Symlink: ~/.claude/skills/<skill-name>
 ```
 
-Then show the full final skill.md content so the user can review it.
+Then show the full final SKILL.md content so the user can review it.
 
 ## Rules
 
@@ -232,7 +232,7 @@ Then show the full final skill.md content so the user can review it.
 - **NEVER paste a private value into a skill.** Put it in `config.local.json` or the
   skill's `data.json`, and reference it.
 - ALWAYS show a diff — never just describe the changes in words.
-- **NEVER remove a fact when you shorten a skill.** Each command, condition, default, and NEVER/ALWAYS rule stays in `skill.md` or in a linked reference file.
+- **NEVER remove a fact when you shorten a skill.** Each command, condition, default, and NEVER/ALWAYS rule stays in `SKILL.md` or in a linked reference file.
 - NEVER drip-feed questions — one message per iteration.
 - If the skill does not exist, fail immediately with the error message and available skills list.
 - When the name changes, update BOTH the source directory and the symlink.

@@ -15,7 +15,7 @@ Review the branch, run the checks, then open a pull request.
 - NEVER invent the `Why` section. Omit it if no ticket, branch, or commit gives the reason.
 - NEVER use `git add .` or `git add -A`. Stage files by name.
 - NEVER guess a tracker host. If the host is unknown, omit the ticket link.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
 
@@ -104,7 +104,7 @@ Skip this step for changes to documentation, configuration, or CI only. Report t
 ### Step 4 — Lint and tests ⟨ph:7a35db17⟩
 
 1. Run `/lint --commit`. If you cannot run the skill, follow its workflow.
-2. Run the full test suite with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md`: `check tests` first, and skip the run if it prints `FRESH`. Else run `make test` if it exists, or the runner of the project, for example `poetry run pytest`, then `record tests passed|failed`. If lint changed files, the stamp is stale, and the suite runs.
+2. Run the full test suite with the test stamp rules in `~/.claude/skills/verify-stamp/SKILL.md`: `check tests` first, and skip the run if it prints `FRESH`. Else run `make test` if it exists, or the runner of the project, for example `poetry run pytest`, then `record tests passed|failed`. If lint changed files, the stamp is stale, and the suite runs.
 3. If a test fails, fix it, run `/lint` again, and run the suite again with the same rules.
 4. If fixes leave changes, check `git status --porcelain`, stage the changed files by name, and commit them with `style: apply formatting`.
 
@@ -130,14 +130,14 @@ It returns JSON with `url`, `draft`, `title`, `body`, `copilot`, and `warnings`.
 
 If the user passed `--no-delegate`, or the subagent fails, do Steps 1–7 of `~/.claude/agents/pr-author.md` yourself. Report which path ran.
 
-If the subagent returns a `CONFLICT_REMOTE` or `CONFLICT_BASE` warning from `push.sh`, resolve the conflict with "Resolve a conflict" in `~/.claude/skills/safe-push/skill.md`: automatically when you can, and ask only when it says that you cannot resolve it. Then run Step 5 again, and list the resolved files in the Step 6 report.
+If the subagent returns a `CONFLICT_REMOTE` or `CONFLICT_BASE` warning from `push.sh`, resolve the conflict with "Resolve a conflict" in `~/.claude/skills/safe-push/SKILL.md`: automatically when you can, and ask only when it says that you cannot resolve it. Then run Step 5 again, and list the resolved files in the Step 6 report.
 
 ### Step 6 — Report ⟨ph:3f36bb50⟩
 
 Report in the terminal, not in the PR:
 
 1. The PR as a link, and draft or regular
-2. Each commit of the PR as a link, oldest first, as `~/.claude/skills/github-links/skill.md` says
+2. Each commit of the PR as a link, oldest first, as `~/.claude/skills/github-links/SKILL.md` says
 3. The Copilot result: confirmed by `gh pr view --json reviewRequests`, or the reason it is not
 4. The classes and methods that still need tests (Step 3)
 5. Each warning: a diff over 500 lines, a sensitive file (`.env`, credentials, secrets), or a model change with no migration

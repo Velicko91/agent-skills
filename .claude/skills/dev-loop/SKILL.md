@@ -92,7 +92,7 @@ Set the `model` of each subagent:
 
 1. Take `--max-iter N` out of `$ARGUMENTS` (default 3).
 2. Find the input type:
-   - A ticket URL or ID, by the Identify section of the tracker adapter (`~/.claude/skills/tracker/skill.md`) → `has_ticket = true`. The text after it is `user_context`.
+   - A ticket URL or ID, by the Identify section of the tracker adapter (`~/.claude/skills/tracker/SKILL.md`) → `has_ticket = true`. The text after it is `user_context`.
    - Any other text → `has_ticket = false`, and `user_context` is empty.
 3. Get the repo root: `git rev-parse --show-toplevel`.
 4. If `has_ticket` is true and `<repo_root>/.claude/worktrees/<ticket>` exists, go to Phase 1b. Otherwise go to Phase 2.
@@ -113,7 +113,7 @@ Skip this phase if `has_ticket` is true.
 
 > You are the **task-creator** in an automated development loop.
 > **Input:** `<$ARGUMENTS>`
-> Read `~/.claude/skills/create-ticket/skill.md` and follow it exactly. Do not pause or ask for confirmation.
+> Read `~/.claude/skills/create-ticket/SKILL.md` and follow it exactly. Do not pause or ask for confirmation.
 > On the last line, write: `TICKET: <key>`
 
 Take `ticket` from the last line.
@@ -122,7 +122,7 @@ Take `ticket` from the last line.
 
 > You are the **worktree-creator** in an automated development loop.
 > **Ticket:** `<ticket>`
-> Read `~/.claude/skills/create-worktree/skill.md` and follow it exactly. At the plan checkpoint ("Shall I create the worktree?"), confirm and continue. But if the branch exists already, or `.claude/worktrees/` is not ignored, do not decide: stop, and on the last line write `WORKTREE: blocked — <reason>`.
+> Read `~/.claude/skills/create-worktree/SKILL.md` and follow it exactly. At the plan checkpoint ("Shall I create the worktree?"), confirm and continue. But if the branch exists already, or `.claude/worktrees/` is not ignored, do not decide: stop, and on the last line write `WORKTREE: blocked — <reason>`.
 > On the last line, write: `WORKTREE: <worktree_path>`
 
 If the last `WORKTREE:` line says `blocked`, stop the loop, and report the reason to the user. Otherwise, take `worktree_path` from it. Get `branch` with `git -C <worktree_path> branch --show-current`. Then write the state file.
@@ -131,7 +131,7 @@ If the last `WORKTREE:` line says `blocked`, stop the loop, and report the reaso
 
 > You are the **coder** in an automated development loop. Implement the ticket `<ticket>`.
 > <preamble>
-> Read `~/.claude/skills/implement-ticket/skill.md` and follow it exactly from the worktree. If the skill says "STOP and WAIT for the user to approve the plan", approve the plan and continue. Complete all phases, including the tests.
+> Read `~/.claude/skills/implement-ticket/SKILL.md` and follow it exactly from the worktree. If the skill says "STOP and WAIT for the user to approve the plan", approve the plan and continue. Complete all phases, including the tests.
 > On the last line, write: `CODER: done`
 
 ### Phase 5 — Review → test → fix loop
@@ -142,7 +142,7 @@ Repeat until `reviewer.satisfied` and `tester.satisfied` are both true, or `iter
 
 > You are the **reviewer** in an automated development loop. Review all staged changes.
 > <preamble>
-> Read `~/.claude/skills/review-code/skill.md`, and run `full --branch`: a full review of the whole branch, committed or not, compared with the default branch (usually `main`).
+> Read `~/.claude/skills/review-code/SKILL.md`, and run `full --branch`: a full review of the whole branch, committed or not, compared with the default branch (usually `main`).
 > `SATISFIED: yes` means that no Critical or Major issue exists. Minor issues and nits do not block. List each blocking issue as `<file>:<line> — <issue>`.
 > End with the status block, then update the state file. Then run `~/.claude/skills/verify-stamp/stamp.sh record review clean` if you are satisfied, or `record review blocking` if not.
 
@@ -150,7 +150,7 @@ Repeat until `reviewer.satisfied` and `tester.satisfied` are both true, or `iter
 
 > You are the **tester** in an automated development loop. Make sure that all changes are tested.
 > <preamble>
-> 1. Read `~/.claude/skills/update-tests/skill.md`, and follow it with `--auto --branch`: fix all failing tests, write all missing tests, and run the full suite with the test stamp rules. If `check tests` prints `FRESH`, the suite already passed on this exact content; do not run it again.
+> 1. Read `~/.claude/skills/update-tests/SKILL.md`, and follow it with `--auto --branch`: fix all failing tests, write all missing tests, and run the full suite with the test stamp rules. If `check tests` prints `FRESH`, the suite already passed on this exact content; do not run it again.
 > 2. Report each function that `--auto` left out as a blocking issue.
 > `SATISFIED: yes` means that all tests pass and all new code paths have tests.
 > End with the status block, then update the state file.
@@ -170,7 +170,7 @@ Repeat until `reviewer.satisfied` and `tester.satisfied` are both true, or `iter
 > 2. Fix each issue. Do not refactor unrelated code.
 > 3. For a tester issue, fix the test or the source code, whichever is wrong.
 > 4. Stage the changes by file name.
-> 5. Run the full test suite with the test stamp rules in `~/.claude/skills/verify-stamp/skill.md` (`check tests` first, `record tests passed|failed` after): `make test` if it exists, else the runner of the project, for example `poetry run pytest -x`.
+> 5. Run the full test suite with the test stamp rules in `~/.claude/skills/verify-stamp/SKILL.md` (`check tests` first, `record tests passed|failed` after): `make test` if it exists, else the runner of the project, for example `poetry run pytest -x`.
 > 6. Report each issue as fixed, or say why you could not fix it.
 
 Then go to Step 5a.
@@ -180,7 +180,7 @@ Then go to Step 5a.
 > You are the **PR creator** in an automated development loop. Open a pull request.
 > <preamble>
 > **Branch:** `<branch>` **Ticket:** `<ticket>`
-> Run `/create-pr --skip-code-review --skip-tests`, or read `~/.claude/skills/create-pr/skill.md` and follow it with those flags. The reviewer and the tester already did those steps. Do not pause for human input.
+> Run `/create-pr --skip-code-review --skip-tests`, or read `~/.claude/skills/create-pr/SKILL.md` and follow it with those flags. The reviewer and the tester already did those steps. Do not pause for human input.
 > On the last line, write: `PR: <url>`
 
 Take the PR URL from the last line.

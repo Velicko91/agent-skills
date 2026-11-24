@@ -22,7 +22,7 @@ Fetch the open review comments of a PR, check each one, fix the real issues, and
 - Start every reply with `Claude AI:`.
 - NEVER give a decision to the `pr-comment-courier` subagent. It runs a cheaper model and has no code context. It only fetches and posts. You categorise each comment, write each reply, and make each edit.
 - NEVER trust the courier's counts without the Step 2 reconciliation, because a silent drop looks like a clean run.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
 
@@ -212,7 +212,7 @@ If Step 5b made commits, push them all at once:
 ```
 
 `push.sh` pulls new commits of the branch, checks for a conflict with the base, and pushes only if both are clean:
-- `CONFLICT_REMOTE` or `CONFLICT_BASE`: resolve it with "Resolve a conflict" in `~/.claude/skills/safe-push/skill.md`: automatically when you can, and ask only when it says that you cannot resolve it. Report each resolved file in Step 8.
+- `CONFLICT_REMOTE` or `CONFLICT_BASE`: resolve it with "Resolve a conflict" in `~/.claude/skills/safe-push/SKILL.md`: automatically when you can, and ask only when it says that you cannot resolve it. Report each resolved file in Step 8.
 - `PULLED …` before `PUSHED`: say that the branch now holds commits from others.
 
 ### Step 8 — Report ⟨ph:1eb00b85⟩

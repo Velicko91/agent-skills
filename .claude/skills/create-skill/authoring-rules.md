@@ -37,7 +37,7 @@ Claude reads a reference file only when a step tells it to.
 
 - Move templates, command maps, config schemas, and long examples to reference files.
 - Link each reference file from the step that uses it: "Read `templates.md` for the comment text."
-- Link reference files only from `skill.md`. Claude can read only part of a file that a second file links to.
+- Link reference files only from `SKILL.md`. Claude can read only part of a file that a second file links to.
 - If a reference file is longer than 100 lines, start it with a table of contents.
 - If a step is deterministic, write a script. Only the script output uses tokens.
 - If two skills share text, put it in one file and link it from both.
@@ -70,7 +70,7 @@ Use this pass to make an existing skill shorter.
 
 1. Apply the rules in this file to each section.
 2. Make a list of the facts in the original: each command, flag, condition, default, NEVER rule, ALWAYS rule, and checkpoint.
-3. Find each fact in the new `skill.md` or in a linked reference file.
+3. Find each fact in the new `SKILL.md` or in a linked reference file.
 4. If a fact is missing, put it back.
 5. Show the size before and after:
 

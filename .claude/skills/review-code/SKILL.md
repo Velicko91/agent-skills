@@ -16,7 +16,7 @@ Review the changes as an expert in the domain and the language. **Fix the small 
 - Never run `git add`, `git commit`, `git stash`, or `git checkout`, because they change the user's work. Leave each fix unstaged.
 - If you are not sure whether a finding is a fix, report it. A wrong fix costs more than one extra line in the report.
 - Be opinionated, specific, and practical. Pick a recommendation and justify it, with file paths, line numbers, and names. Prefer the patterns of the code base unless there is a strong reason.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
 

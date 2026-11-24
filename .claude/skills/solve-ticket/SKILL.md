@@ -21,7 +21,7 @@ Take a ticket from claim to PR. `/implement-ticket` does all design and implemen
 
 ## Tracker
 
-Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the adapter. Steps 1 and 6 use its Tools and States sections.
+Follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`, and read the adapter. Steps 1 and 6 use its Tools and States sections.
 
 ## Arguments
 

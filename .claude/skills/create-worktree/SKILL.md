@@ -19,7 +19,7 @@ Create an isolated git worktree with a properly named branch, for a ticket or a 
 
 ## Tracker
 
-Follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`, and read the adapter. Its Identify section gives the ID and URL patterns and the ticket link; its Tools section gives the fetch tool. If `~/.claude/config.local.json` is missing, copy `config.example.json`, and ask the user to fill it in.
+Follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`, and read the adapter. Its Identify section gives the ID and URL patterns and the ticket link; its Tools section gives the fetch tool. If `~/.claude/config.local.json` is missing, copy `config.example.json`, and ask the user to fill it in.
 
 ## Arguments
 

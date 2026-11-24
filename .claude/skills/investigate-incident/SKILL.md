@@ -19,10 +19,10 @@ Find the cause of an incident in one service, and the fix. Start from what past 
 - A match with a past incident is a hypothesis. Confirm each cause with evidence: a query result, a log line, or a `file:line` reference.
 - NEVER update the knowledge file or the incident log before the user says that the incident is solved, or before the resolve check finds it resolved in incident.io, because an unconfirmed cause misleads the next investigation.
 - Write temporary files only to the working folder of this incident. NEVER delete the folder of another incident, because another session can still use it.
-- NEVER guess a channel, a database alias, or a repo path, because a wrong source gives wrong evidence. NEVER write a service value in `skill.md`, because `skill.md` is public.
+- NEVER guess a channel, a database alias, or a repo path, because a wrong source gives wrong evidence. NEVER write a service value in `SKILL.md`, because `SKILL.md` is public.
 - If the evidence points to a false positive, and a read at a later time can confirm it, schedule the recheck without asking. The recheck only reads, so it changes nothing.
 - If you recommend a feature flag as a fix, show the name of the user who added the flag. The user can then ask that person if the flag is safe.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Local configuration
 

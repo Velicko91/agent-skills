@@ -91,7 +91,7 @@ When creating a new skill:
 1. **Create the skill in the source directory**:
    ```bash
    mkdir -p $CLAUDE_CONFIG_REPO/.claude/skills/{skill-name}
-   # Create skill.md in that directory
+   # Create SKILL.md in that directory
    ```
 
 2. **Create symlink in home**:
@@ -102,7 +102,7 @@ When creating a new skill:
 ### Current Skills
 
 All skills should follow this pattern:
-- Source: `$CLAUDE_CONFIG_REPO/.claude/skills/{skill-name}/skill.md`
+- Source: `$CLAUDE_CONFIG_REPO/.claude/skills/{skill-name}/SKILL.md`
 - Symlink: `~/.claude/skills/{skill-name}` → source
 
 ### Why This Structure

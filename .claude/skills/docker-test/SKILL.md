@@ -30,7 +30,7 @@ Each service has a rules file: `<skill-dir>/rules/<repo-name>.local.md`. `<repo-
 - If the file exists, follow it in Steps 5 to 8.
 - If it does not exist, use generic discovery. At the end, offer to create it from `rules/TEMPLATE.example.md` with what you learned.
 - Put each service in its own file. NEVER add a second service to a rules file.
-- NEVER copy values from a rules file into `skill.md`, because `skill.md` is public.
+- NEVER copy values from a rules file into `SKILL.md`, because `SKILL.md` is public.
 
 ## Arguments
 

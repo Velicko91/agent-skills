@@ -16,8 +16,8 @@ Test one service on the dev environment. Plan the tests, wait for a yes, run the
 - NEVER print a token, a password, or another secret. Refer to it by its variable or file name.
 - Keep a token only in the token file of the run (Step 3). Delete that file at the end of the run, also after a failure.
 - If a token, a test account, or a value is missing and the service file gives no command to get it, ask the user for it. STOP and WAIT. NEVER guess it.
-- NEVER copy a value from a service file into `skill.md`, because `skill.md` is public.
-- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
+- NEVER copy a value from a service file into `SKILL.md`, because `SKILL.md` is public.
+- Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/SKILL.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Service files
 
@@ -46,7 +46,7 @@ Each service has a file: `<skill-dir>/services/<service>.local.md`. It holds the
 
 1. Read `services/<service>.local.md`.
 2. Read the criteria:
-   - A ticket ID: follow "Select the tracker" in `~/.claude/skills/tracker/skill.md`. Read the acceptance criteria with the Fetch tool of the adapter.
+   - A ticket ID: follow "Select the tracker" in `~/.claude/skills/tracker/SKILL.md`. Read the acceptance criteria with the Fetch tool of the adapter.
    - A file path: read the file.
    - Text: use it as it is.
 3. If there are no criteria, or `--random` is given, design exploratory tests:
