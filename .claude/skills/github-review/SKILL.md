@@ -1,5 +1,6 @@
 ---
 name: github-review
+model: opus
 description: Reviews a GitHub pull request — checks out its branch in a worktree, runs /review-code on the branch, and posts each finding as an inline comment on the exact line. Use for "/github-review 123", "review PR <url>", or "review this pull request".
 user-invocable: true
 allowed-tools: Bash(gh *), Bash(git *), Bash(jq *), Read, Grep, Glob, Skill, mcp__notion__notion-fetch, mcp__notion__notion-search
@@ -60,6 +61,8 @@ Drop the findings about unused or missing imports, because linters report them.
 ### Step 4 — Post the findings
 
 Make one comment for each finding with a location: `Claude AI: **[<Critical|Major|Minor|Architecture|Alternative|Comment|Best practice>]** <issue>. <concrete fix>`. Skip a finding if Step 1 shows a Claude comment on the same path and line with the same point. If no finding is left, post nothing.
+
+If the PR author is not you (`gh api user --jq .login`), keep each comment body to 5 lines or fewer, because a long comment on another person's PR is hard to read. Put the issue and the fix first, and cut the detail.
 
 With `--dry-run`, print the comments and stop at Step 5.
 

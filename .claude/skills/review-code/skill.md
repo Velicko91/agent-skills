@@ -1,5 +1,6 @@
 ---
 name: review-code
+model: opus
 description: Reviews staged changes, or a whole branch with --branch, as a domain expert — applies nits and simple cleanups, and reports only what needs a decision: alternatives, architecture, domain logic, and issues. Use for "/review-code", "review my changes", or "review this branch".
 user-invocable: true
 allowed-tools: Bash(git *), Read, Grep, Glob, Edit

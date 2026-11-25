@@ -1,5 +1,6 @@
 ---
 name: review-dependabot-pr
+model: opus
 description: Reviews one dependabot PR in depth — changelog, real call sites, lockfile extras gating, org policy — then repairs that PR so it can merge, and posts one comment. Runs unattended. Use for "/review-dependabot-pr <url>" or "review this dependabot PR".
 user-invocable: true
 allowed-tools: Bash(gh *), Bash(git *), Bash(go *), Bash(poetry *), Bash(uv *), Bash(pytest *), Bash(make *), Bash(ruff *), Bash(mypy *), Bash(pnpm *), Bash(npm *), Bash(diff *), Bash(jq *), Bash(awk *), Bash(grep *), Bash(sort *), Bash(comm *), Bash(wc *), Bash(head *), Bash(tail *), Bash(find *), Bash(ls *), Bash(cat *), Read, Grep, Glob, Edit, Write, WebFetch
@@ -255,7 +256,22 @@ Open a second PR only after a push that you tried has failed, for one of exactly
 
 ### Phase 9 — Post one comment
 
-Unless `--no-comment` is set, post exactly one comment. Use a heredoc, so the body has real newlines:
+Unless `--no-comment` is set, post exactly one comment.
+
+**Do not post the same comment twice.** Before you post, look for an earlier review comment on this PR:
+
+```bash
+gh pr view <ref> --json comments,commits --jq '.comments[] | select(.body | startswith("Claude AI: **Dependabot review")) | {url, createdAt, body}'
+```
+
+Skip the post, and record `skipped (unchanged since <comment url>)`, when all three are true:
+- The PR head commit is the one in the earlier comment (`Reviewed commit:` line). If the old comment has no such line, no commit on the PR is newer than the comment.
+- The verdict is the same.
+- The security case, the breaking changes, the failing policy rules, and the consumer impact are the same.
+
+If one of the three changed, post a new comment that says what changed. Never edit or delete the old comment. This rule limits only the post: do the full review again, because a verdict from an earlier run is not proof.
+
+Use a heredoc, so the body has real newlines:
 
 ```bash
 gh pr comment <ref> --body "$(cat <<'EOF'
@@ -278,6 +294,7 @@ Claude AI: **Dependabot review — <package> <old> → <new>**
 
 ### Verification
 - <CI state, or the local result if a suspicion forced a run>
+- Reviewed commit: <first 7 characters of headRefOid>
 EOF
 )"
 ```
@@ -309,7 +326,7 @@ Repaired:  <what you pushed, or "nothing — PR was clean">
 Pushed to: <headRefName>          (or "not pushed — --report-only")
 Tests:     <"not re-run — CI green, no breaking change suspected",
             or the local result, or "N added in <files>">
-Comment:   <url>                  (or "skipped (--no-comment)")
+Comment:   <url>                  (or "skipped (--no-comment)", or "skipped (unchanged since <url>)")
 
 <one paragraph in plain language, with the recommendation>
 ```

@@ -1,5 +1,6 @@
 ---
 name: fix-pr-comments
+model: opus
 description: Triages the unresolved review comments of a PR, checks each one against the code, fixes the real ones after approval (typos at once), and replies to every comment with the outcome. Use for "/fix-pr-comments", "address the PR comments", or "reply to the review".
 allowed-tools: Bash(gh *), Bash(git *), Bash(jq *), Bash(make *), Bash(poetry *), Bash(uv *), Bash(npm *), Bash(~/.claude/skills/safe-push/push.sh *), Bash(~/.claude/skills/verify-stamp/stamp.sh *), Read, Edit, Grep, Glob, Agent, Skill
 ---

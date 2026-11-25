@@ -1,5 +1,6 @@
 ---
 name: drill-me
+model: opus
 description: Researches how a problem is solved in existing repos or on the web, ranks the design questions, asks the most important ones round by round until every design decision is settled, writes an alignment document, then hands it to /implement-ticket or /create-notion-tech-spec. Use for "/drill-me <topic>", "drill me on this design", or "what am I not thinking about".
 user-invocable: true
 allowed-tools: Bash, WebSearch, WebFetch, Read, Write, Grep, Glob, Skill

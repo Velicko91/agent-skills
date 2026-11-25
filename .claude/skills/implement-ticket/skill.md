@@ -1,5 +1,6 @@
 ---
 name: implement-ticket
+model: opus
 description: Implements a ticket from the configured tracker (Linear today) or a free-text spec — explores the code, writes a plan with three self-review passes, waits for approval, implements and tests, then follows the ticket through merge, dev tests, and prod checks. Use for "/implement-ticket PROJ-1234", a ticket URL, or "implement this ticket".
 user-invocable: true
 allowed-tools: "*"
@@ -23,6 +24,7 @@ Build a reviewed plan from a ticket or a description. Get approval, then impleme
 - NEVER change a feature flag. Report the flag and the value it needs, because the user owns the rollout.
 - Use `date -u +%Y-%m-%d` for every date. NEVER guess today's date.
 - ALWAYS update the PR description after each push to an open PR, as "PR description" says. A stale description describes code that is not on the branch.
+- If an outside state blocks an action, start a retry job, as "Retry a blocked action" says. Do not stop and wait for the user.
 - Write a phase marker when each phase starts, as `~/.claude/skills/phase-markers/skill.md` says. The ID is the `⟨ph:…⟩` on the phase heading.
 
 ## Arguments
@@ -310,6 +312,24 @@ A run is automated when no user is present: headless (`claude -p`), background (
 - Run `git` only in that worktree. Push only the branch of this ticket. NEVER force-push.
 - Do not touch `~/.claude`, settings, skills, other repositories, other worktrees, or the main checkout. The only exception is the work log, through `/work-log`.
 - If a step needs a path outside the worktree, skip the step, report it, and stop. Ask no question.
+
+## Retry a blocked action
+
+An action is blocked when an outside state stops it and that state can change without this session. Examples: a missing GitHub permission (for example the maintainer role for `.github/`), branch protection, a required approval, a CI check that is pending or canceled, or a login that the user must renew.
+
+1. Tell the user in one message what blocks the action and what removes the block.
+2. Start a recurring job with CronCreate every 10 minutes, on minutes that are not 0 or 30, for example `3-59/10 * * * *`. Write its prompt so it stands alone, because it runs without this conversation:
+   - Check the block with a read-only command, when one exists, for example `gh pr view <pr> --json mergeStateStatus`. If no check exists, run the blocked action again with the same command.
+   - If the action is still blocked by the same cause, end the turn with no text, because each run otherwise adds lines to the terminal.
+   - If the block is gone, delete the job with CronDelete, run the action, and report the result in one line. Send a PushNotification `<TICKET>: <action> done`, then continue the phase that the block stopped.
+   - If the action fails for a different cause, delete the job and report the new error. Do not retry it.
+3. Show the job id and its next run time once. Say that the job lives only in this session and stops after 7 days.
+4. If the user says that the block is gone, delete the job and run the action at once.
+
+Do not start a retry job in these cases:
+- The user denied a tool call, because the denial is the decision of the user.
+- The action is not safe to run two times, for example a second PR or a second comment.
+- The Phase 8 merge check or the Phase 10 release watch already covers the wait.
 
 ## Other rules
 

@@ -60,6 +60,12 @@ Write all output in Simplified Technical English (ASD-STE100).
 - If you compare code or text, show a unified diff instead of a table.
 - Show a difference in a table or a diff, not in prose.
 
+## Commit messages
+
+- Wrap each line of a commit message body at 72 characters, because commitlint (`body-max-line-length`) fails any body line over 100.
+- Write the body with hard line breaks: one short `-m` per line, or a message file. Do not pass a paragraph as one `-m` line.
+- Before a push, check the new commits: `git log --format=%b <base>..HEAD | awk 'length > 100'` must print nothing.
+
 ## cmux
 
 - If the user asks to pause or unpause this session, run `cmux-pause <4h | until <when> | off>`. Run `cmux-pause` with no arguments for the forms of `<when>`.
